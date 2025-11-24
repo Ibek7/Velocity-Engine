@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.d
+*.out
+*.exe
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Logs
+*.log
+
+# Core dumps
+core
