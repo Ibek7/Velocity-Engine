@@ -1,0 +1,10 @@
+# JJM Game Engine Configuration
+window_width=1280
+window_height=720
+fullscreen=false
+window_title=JJM Game Engine Demo
+target_fps=60
+vsync=true
+audio_enabled=true
+music_volume=80
+sfx_volume=100
