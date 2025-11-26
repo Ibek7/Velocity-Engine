@@ -9,7 +9,7 @@ namespace Physics {
 
 // Collider base class
 Collider::Collider(ColliderType t) 
-    : type(t), offset(0, 0), isTrigger(false) {}
+    : type(t), offset(0, 0), isTrigger(false), layer(0), layerMask(0xFFFFFFFF) {}
 
 Math::Vector2D Collider::getPosition() const {
     if (owner) {
@@ -21,12 +21,28 @@ Math::Vector2D Collider::getPosition() const {
     return offset;
 }
 
+bool Collider::canCollideWith(const Collider* other) const {
+    if (!other) return false;
+    // Check if this layer mask includes other's layer
+    // and if other's layer mask includes this layer
+    return ((layerMask & (1 << other->layer)) != 0) &&
+           ((other->layerMask & (1 << layer)) != 0);
+}
+
+void Collider::setLayer(int l) {
+    layer = l;
+}
+
+void Collider::setLayerMask(int mask) {
+    layerMask = mask;
+}
+
 // CircleCollider
 CircleCollider::CircleCollider(float r) 
     : Collider(ColliderType::CIRCLE), radius(r) {}
 
 bool CircleCollider::checkCollision(const Collider* other, CollisionInfo& info) const {
-    if (!other) return false;
+    if (!other || !canCollideWith(other)) return false;
     
     switch (other->type) {
         case ColliderType::CIRCLE:
@@ -92,7 +108,7 @@ BoxCollider::BoxCollider(float width, float height)
     : Collider(ColliderType::BOX), size(width, height) {}
 
 bool BoxCollider::checkCollision(const Collider* other, CollisionInfo& info) const {
-    if (!other) return false;
+    if (!other || !canCollideWith(other)) return false;
     
     switch (other->type) {
         case ColliderType::CIRCLE:

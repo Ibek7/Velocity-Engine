@@ -28,12 +28,18 @@ public:
     ColliderType type;
     Math::Vector2D offset;
     bool isTrigger;
+    int layer;
+    int layerMask;
     
     Collider(ColliderType t = ColliderType::BOX);
     virtual ~Collider() = default;
     
     virtual bool checkCollision(const Collider* other, CollisionInfo& info) const = 0;
     virtual Math::Vector2D getPosition() const;
+    
+    bool canCollideWith(const Collider* other) const;
+    void setLayer(int l);
+    void setLayerMask(int mask);
 };
 
 class CircleCollider : public Collider {
