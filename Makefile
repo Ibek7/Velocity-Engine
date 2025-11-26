@@ -1,9 +1,13 @@
 # JJM Game Engine Makefile
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude -O2
-DEBUGFLAGS = -g -DDEBUG
+CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
+RELEASEFLAGS = -O3 -march=native -DNDEBUG -flto -ffast-math
+DEBUGFLAGS = -O0 -g -DDEBUG -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS = -lSDL2 -lSDL2_image -lSDL2_mixer -lSDL2_ttf -lpthread
+
+# Build mode (default: release)
+BUILD_MODE ?= release
 
 # Directories
 SRC_DIR = src
@@ -18,6 +22,15 @@ DEPS = $(OBJECTS:.o=.d)
 
 # Target executable
 TARGET = $(BIN_DIR)/game_engine
+
+# Set flags based on build mode
+ifeq ($(BUILD_MODE),debug)
+	CXXFLAGS += $(DEBUGFLAGS)
+	LDFLAGS += -fsanitize=address
+else ifeq ($(BUILD_MODE),release)
+	CXXFLAGS += $(RELEASEFLAGS)
+	LDFLAGS += -flto
+endif
 
 # Default target
 all: directories $(TARGET)
@@ -50,9 +63,16 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 # Include dependency files
 -include $(DEPS)
 
-# Debug build
-debug: CXXFLAGS += $(DEBUGFLAGS)
-debug: clean all
+# Build modes
+debug:
+	@$(MAKE) BUILD_MODE=debug all
+
+release:
+	@$(MAKE) BUILD_MODE=release all
+
+profile: CXXFLAGS += -O2 -pg
+profile: LDFLAGS += -pg
+profile: clean all
 
 # Clean build artifacts
 clean:
@@ -69,4 +89,23 @@ install-deps:
 	@echo "On macOS: brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf"
 	@echo "On Ubuntu: sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev"
 
-.PHONY: all directories clean debug run install-deps
+# Build information
+info:
+	@echo "Build Configuration:"
+	@echo "  Mode: $(BUILD_MODE)"
+	@echo "  Compiler: $(CXX)"
+	@echo "  CXXFLAGS: $(CXXFLAGS)"
+	@echo "  LDFLAGS: $(LDFLAGS)"
+	@echo "  Target: $(TARGET)"
+
+# Code statistics
+stats:
+	@echo "=== JJM Engine Code Statistics ==="
+	@echo "Header files:"
+	@find $(INCLUDE_DIR) -name "*.h" | wc -l
+	@echo "Source files:"
+	@find $(SRC_DIR) -name "*.cpp" | wc -l
+	@echo "Total lines of code:"
+	@find $(SRC_DIR) $(INCLUDE_DIR) -name "*.cpp" -o -name "*.h" | xargs wc -l | tail -1
+
+.PHONY: all directories clean debug release profile run install-deps info stats
