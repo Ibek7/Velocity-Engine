@@ -59,6 +59,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/memory
 	@mkdir -p $(BUILD_DIR)/gui
 	@mkdir -p $(BUILD_DIR)/threading
+	@mkdir -p $(BUILD_DIR)/editor
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
