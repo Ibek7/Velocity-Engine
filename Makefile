@@ -48,6 +48,13 @@ directories:
 	@mkdir -p $(BUILD_DIR)/scene
 	@mkdir -p $(BUILD_DIR)/ui
 	@mkdir -p $(BUILD_DIR)/utils
+	@mkdir -p $(BUILD_DIR)/network
+	@mkdir -p $(BUILD_DIR)/animation
+	@mkdir -p $(BUILD_DIR)/camera
+	@mkdir -p $(BUILD_DIR)/events
+	@mkdir -p $(BUILD_DIR)/particles
+	@mkdir -p $(BUILD_DIR)/state
+	@mkdir -p $(BUILD_DIR)/tilemap
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
