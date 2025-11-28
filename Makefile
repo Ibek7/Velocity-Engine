@@ -55,6 +55,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/particles
 	@mkdir -p $(BUILD_DIR)/state
 	@mkdir -p $(BUILD_DIR)/tilemap
+	@mkdir -p $(BUILD_DIR)/scripting
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
