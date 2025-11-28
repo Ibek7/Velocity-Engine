@@ -57,6 +57,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/tilemap
 	@mkdir -p $(BUILD_DIR)/scripting
 	@mkdir -p $(BUILD_DIR)/memory
+	@mkdir -p $(BUILD_DIR)/gui
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
