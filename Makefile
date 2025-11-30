@@ -61,6 +61,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/threading
 	@mkdir -p $(BUILD_DIR)/editor
 	@mkdir -p $(BUILD_DIR)/video
+	@mkdir -p $(BUILD_DIR)/localization
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
