@@ -4,7 +4,7 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude -I/opt/homebrew/include/SDL2
 RELEASEFLAGS = -O3 -march=native -DNDEBUG -flto -ffast-math
 DEBUGFLAGS = -O0 -g -DDEBUG -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS = -L/opt/homebrew/lib -lSDL2 -lSDL2_image -lSDL2_mixer -lSDL2_ttf -lpthread
+LDFLAGS = -L/opt/homebrew/lib -lSDL2 -lSDL2_image -lSDL2_mixer -lSDL2_ttf -lpthread -ldl
 
 # Build mode (default: release)
 BUILD_MODE ?= release
@@ -61,6 +61,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/gui
 	@mkdir -p $(BUILD_DIR)/threading
 	@mkdir -p $(BUILD_DIR)/editor
+	@mkdir -p $(BUILD_DIR)/plugin
 	@mkdir -p $(BUILD_DIR)/video
 	@mkdir -p $(BUILD_DIR)/localization
 	@mkdir -p $(BIN_DIR)
