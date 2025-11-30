@@ -43,6 +43,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/graphics
 	@mkdir -p $(BUILD_DIR)/physics
 	@mkdir -p $(BUILD_DIR)/audio
+	@mkdir -p $(BUILD_DIR)/audio/advanced
 	@mkdir -p $(BUILD_DIR)/ecs
 	@mkdir -p $(BUILD_DIR)/input
 	@mkdir -p $(BUILD_DIR)/scene
