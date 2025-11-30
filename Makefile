@@ -63,6 +63,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/editor
 	@mkdir -p $(BUILD_DIR)/plugin
 	@mkdir -p $(BUILD_DIR)/video
+	@mkdir -p $(BUILD_DIR)/streaming
 	@mkdir -p $(BUILD_DIR)/localization
 	@mkdir -p $(BIN_DIR)
 
