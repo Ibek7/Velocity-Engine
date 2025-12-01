@@ -67,6 +67,7 @@ directories:
 	@mkdir -p $(BUILD_DIR)/streaming
 	@mkdir -p $(BUILD_DIR)/localization
 	@mkdir -p $(BUILD_DIR)/profiler
+	@mkdir -p $(BUILD_DIR)/serialization
 	@mkdir -p $(BIN_DIR)
 
 # Link object files to create executable
