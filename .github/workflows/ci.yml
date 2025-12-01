@@ -1,0 +1,79 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          build-essential
+    
+    - name: Build Release
+      run: make release
+    
+    - name: Build Debug
+      run: |
+        make clean
+        make debug
+    
+    - name: Code Statistics
+      run: make stats
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf
+    
+    - name: Build Release
+      run: make release
+    
+    - name: Build Debug
+      run: |
+        make clean
+        make debug
+    
+    - name: Code Statistics
+      run: make stats
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy cppcheck
+    
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=all --suppress=missingIncludeSystem \
+          --inline-suppr --error-exitcode=0 \
+          -I include src/ 2>&1 | tee cppcheck_report.txt
+    
+    - name: Upload cppcheck report
+      uses: actions/upload-artifact@v3
+      with:
+        name: cppcheck-report
+        path: cppcheck_report.txt
