@@ -38,6 +38,7 @@ all: directories $(TARGET)
 # Create necessary directories
 directories:
 	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(BUILD_DIR)/ai
 	@mkdir -p $(BUILD_DIR)/core
 	@mkdir -p $(BUILD_DIR)/math
 	@mkdir -p $(BUILD_DIR)/graphics
