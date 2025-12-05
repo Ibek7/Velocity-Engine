@@ -233,7 +233,7 @@ bool ScriptEngine::initializeLua() {
     
     // Register all pending functions and variables
     for (const auto& pair : registeredFunctions) {
-        registerLuaFunction(pair.first, pair.second.function);
+        registerLuaFunction(pair.first, pair.second.getFunction());
     }
     
     for (const auto& pair : globalVariables) {

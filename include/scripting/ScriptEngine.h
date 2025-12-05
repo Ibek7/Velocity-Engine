@@ -65,15 +65,16 @@ class ScriptFunction {
 public:
     using CppFunction = std::function<ScriptValue(const std::vector<ScriptValue>&)>;
     
-private:
-    std::string name;
-    CppFunction function;
-    
-public:
+    ScriptFunction() = default;
     ScriptFunction(const std::string& name, CppFunction func);
     
     ScriptValue call(const std::vector<ScriptValue>& args) const;
     const std::string& getName() const { return name; }
+    const CppFunction& getFunction() const { return function; }
+    
+private:
+    std::string name;
+    CppFunction function;
 };
 
 class ScriptEngine {
