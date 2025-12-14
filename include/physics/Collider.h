@@ -4,6 +4,7 @@
 #include "math/Vector2D.h"
 #include "ecs/Component.h"
 #include <vector>
+#include <functional>
 
 namespace JJM {
 namespace Physics {
@@ -23,6 +24,9 @@ struct CollisionInfo {
     CollisionInfo() : colliding(false), normal(0, 0), penetration(0), other(nullptr) {}
 };
 
+using CollisionCallback = std::function<void(const CollisionInfo&)>;
+using TriggerCallback = std::function<void(ECS::Entity*)>;
+
 class Collider : public ECS::Component {
 public:
     ColliderType type;
@@ -40,6 +44,29 @@ public:
     bool canCollideWith(const Collider* other) const;
     void setLayer(int l);
     void setLayerMask(int mask);
+    
+    // Collision callbacks
+    void setOnCollisionEnter(CollisionCallback callback) { onCollisionEnter = callback; }
+    void setOnCollisionStay(CollisionCallback callback) { onCollisionStay = callback; }
+    void setOnCollisionExit(CollisionCallback callback) { onCollisionExit = callback; }
+    
+    void setOnTriggerEnter(TriggerCallback callback) { onTriggerEnter = callback; }
+    void setOnTriggerExit(TriggerCallback callback) { onTriggerExit = callback; }
+    
+    void invokeCollisionEnter(const CollisionInfo& info) { if (onCollisionEnter) onCollisionEnter(info); }
+    void invokeCollisionStay(const CollisionInfo& info) { if (onCollisionStay) onCollisionStay(info); }
+    void invokeCollisionExit(const CollisionInfo& info) { if (onCollisionExit) onCollisionExit(info); }
+    
+    void invokeTriggerEnter(ECS::Entity* other) { if (onTriggerEnter) onTriggerEnter(other); }
+    void invokeTriggerExit(ECS::Entity* other) { if (onTriggerExit) onTriggerExit(other); }
+
+protected:
+    CollisionCallback onCollisionEnter;
+    CollisionCallback onCollisionStay;
+    CollisionCallback onCollisionExit;
+    
+    TriggerCallback onTriggerEnter;
+    TriggerCallback onTriggerExit;
 };
 
 class CircleCollider : public Collider {

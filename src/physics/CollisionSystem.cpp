@@ -167,23 +167,59 @@ void CollisionSystem::detectCollisionsSpatialHash() {
 
 void CollisionSystem::processCollisionPair(Collider* a, Collider* b) {
     CollisionInfo info;
+    CollisionPair pair{a, b};
+    bool wasColliding = activeCollisions.find(pair) != activeCollisions.end();
     
     if (a->checkCollision(b, info)) {
         collisionCount++;
-        
-        CollisionPair pair{a, b};
-        bool wasColliding = activeCollisions.find(pair) != activeCollisions.end();
         activeCollisions[pair] = true;
         
+        info.other = static_cast<ECS::Entity*>(b->getOwner());
+        
         if (wasColliding) {
+            // Ongoing collision - stay callbacks
+            if (!a->isTrigger && !b->isTrigger) {
+                a->invokeCollisionStay(info);
+                info.other = static_cast<ECS::Entity*>(a->getOwner());
+                b->invokeCollisionStay(info);
+            }
+            
             if (onCollisionStay) {
                 onCollisionStay(a, b, info);
             }
         } else {
+            // New collision - enter callbacks
+            if (a->isTrigger || b->isTrigger) {
+                a->invokeTriggerEnter(static_cast<ECS::Entity*>(b->getOwner()));
+                b->invokeTriggerEnter(static_cast<ECS::Entity*>(a->getOwner()));
+            } else {
+                a->invokeCollisionEnter(info);
+                info.other = static_cast<ECS::Entity*>(a->getOwner());
+                b->invokeCollisionEnter(info);
+            }
+            
             if (onCollisionEnter) {
                 onCollisionEnter(a, b, info);
             }
         }
+    } else if (wasColliding) {
+        // No longer colliding - exit callbacks
+        info.other = static_cast<ECS::Entity*>(b->getOwner());
+        
+        if (a->isTrigger || b->isTrigger) {
+            a->invokeTriggerExit(static_cast<ECS::Entity*>(b->getOwner()));
+            b->invokeTriggerExit(static_cast<ECS::Entity*>(a->getOwner()));
+        } else {
+            a->invokeCollisionExit(info);
+            info.other = static_cast<ECS::Entity*>(a->getOwner());
+            b->invokeCollisionExit(info);
+        }
+        
+        if (onCollisionExit) {
+            onCollisionExit(a, b, info);
+        }
+        
+        activeCollisions.erase(pair);
     }
 }
 
