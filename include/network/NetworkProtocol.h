@@ -101,8 +101,6 @@ private:
     std::vector<Packet> sendQueue;
     std::vector<Packet> receiveQueue;
     
-    uint32_t nextPacketId;
-    
     bool sendRaw(const uint8_t* data, size_t size);
     bool receiveRaw(uint8_t* buffer, size_t size);
 };

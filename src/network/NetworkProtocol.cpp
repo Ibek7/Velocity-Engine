@@ -194,7 +194,7 @@ void Socket::setReuseAddress(bool reuse) {
 }
 
 Connection::Connection(Socket* socket)
-    : socket(socket), status(ConnectionStatus::Connected), reliable(true), ping(0), nextPacketId(0) {}
+    : socket(socket), status(ConnectionStatus::Connected), reliable(true), ping(0) {}
 
 Connection::~Connection() {}
 
