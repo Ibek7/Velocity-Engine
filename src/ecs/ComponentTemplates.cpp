@@ -113,7 +113,7 @@ Entity* TemplateManager::createEntityFromTemplate(const std::string& templateNam
         return nullptr;
     }
     
-    Entity* entity = new Entity();
+    Entity* entity = new Entity(0, nullptr); // TODO: Pass proper EntityManager
     applyTemplateToEntity(entity, templateName);
     return entity;
 }

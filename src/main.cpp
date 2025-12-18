@@ -9,7 +9,7 @@
 #include "utils/DebugUtils.h"
 #include "core/Config.h"
 #include "state/StateMachine.h"
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <iostream>
 #include <memory>
 

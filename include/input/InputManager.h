@@ -2,7 +2,7 @@
 #define INPUT_MANAGER_H
 
 #include "math/Vector2D.h"
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <unordered_map>
 #include <string>
 

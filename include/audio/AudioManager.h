@@ -1,7 +1,7 @@
 #ifndef AUDIO_MANAGER_H
 #define AUDIO_MANAGER_H
 
-#include <SDL2/SDL_mixer.h>
+#include <SDL_mixer.h>
 #include <string>
 #include <unordered_map>
 #include <memory>

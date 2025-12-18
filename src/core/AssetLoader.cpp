@@ -89,9 +89,13 @@ void AssetLoader::unloadAll() {
                     }
                     break;
                 case AssetType::SOUND:
+                    if (audioManager) {
+                        audioManager->unloadSoundEffect(asset.id);
+                    }
+                    break;
                 case AssetType::MUSIC:
                     if (audioManager) {
-                        audioManager->unloadSound(asset.id);
+                        audioManager->unloadMusic(asset.id);
                     }
                     break;
                 default:
@@ -119,9 +123,13 @@ void AssetLoader::unloadGroup(const std::vector<std::string>& ids) {
                     }
                     break;
                 case AssetType::SOUND:
+                    if (audioManager) {
+                        audioManager->unloadSoundEffect(asset.id);
+                    }
+                    break;
                 case AssetType::MUSIC:
                     if (audioManager) {
-                        audioManager->unloadSound(asset.id);
+                        audioManager->unloadMusic(asset.id);
                     }
                     break;
                 default:
@@ -165,13 +173,14 @@ void AssetLoader::loadAsset(size_t index) {
     
     switch (asset.type) {
         case AssetType::TEXTURE:
-            if (resourceManager && renderer) {
-                success = resourceManager->loadTexture(asset.id, asset.path, renderer);
+            if (resourceManager) {
+                auto texture = resourceManager->loadTexture(asset.id, asset.path);
+                success = (texture != nullptr);
             }
             break;
         case AssetType::SOUND:
             if (audioManager) {
-                success = audioManager->loadSound(asset.id, asset.path);
+                success = audioManager->loadSoundEffect(asset.id, asset.path);
             }
             break;
         case AssetType::MUSIC:

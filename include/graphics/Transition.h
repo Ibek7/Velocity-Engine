@@ -4,7 +4,7 @@
 #include "graphics/Renderer.h"
 #include "graphics/Color.h"
 #include <functional>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 namespace JJM {
 namespace Graphics {

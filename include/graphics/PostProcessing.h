@@ -3,7 +3,7 @@
 
 #include "graphics/Renderer.h"
 #include "graphics/Color.h"
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <vector>
 
 namespace JJM {

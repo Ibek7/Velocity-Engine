@@ -6,7 +6,7 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 namespace JJM {
 namespace Graphics {

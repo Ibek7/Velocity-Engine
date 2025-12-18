@@ -6,7 +6,7 @@
 #include "graphics/Texture.h"
 #include "graphics/Renderer.h"
 #include <vector>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 namespace JJM {
 namespace Graphics {
