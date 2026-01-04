@@ -295,6 +295,168 @@ private:
     std::shared_ptr<AnimationStateMachine> stateMachine;
 };
 
+/**
+ * @brief Animation event types
+ */
+enum class AnimationEventType {
+    FrameReached,      // Triggered at specific frame
+    TimeReached,       // Triggered at specific time
+    StateEnter,        // Triggered when entering state
+    StateExit,         // Triggered when exiting state
+    TransitionStart,   // Triggered when transition begins
+    TransitionEnd,     // Triggered when transition completes
+    LoopComplete,      // Triggered when animation loops
+    AnimationEnd,      // Triggered when animation finishes
+    Custom             // User-defined event
+};
+
+/**
+ * @brief Animation event data
+ */
+struct AnimationEvent {
+    AnimationEventType type;
+    std::string name;
+    std::string stateName;
+    std::string animationName;
+    float triggerTime;      // For time-based events
+    int triggerFrame;       // For frame-based events
+    std::string customData; // Additional event data
+    bool consumed;
+    
+    AnimationEvent()
+        : type(AnimationEventType::Custom)
+        , triggerTime(0.0f)
+        , triggerFrame(0)
+        , consumed(false)
+    {}
+    
+    AnimationEvent(AnimationEventType t, const std::string& n)
+        : type(t)
+        , name(n)
+        , triggerTime(0.0f)
+        , triggerFrame(0)
+        , consumed(false)
+    {}
+};
+
+/**
+ * @brief Animation event handler callback
+ */
+using AnimationEventHandler = std::function<void(const AnimationEvent&)>;
+
+/**
+ * @brief Animation event listener with priority
+ */
+struct AnimationEventListener {
+    int id;
+    AnimationEventType eventType;
+    std::string eventName;
+    AnimationEventHandler handler;
+    int priority;
+    bool enabled;
+    
+    AnimationEventListener()
+        : id(-1)
+        , eventType(AnimationEventType::Custom)
+        , priority(0)
+        , enabled(true)
+    {}
+};
+
+/**
+ * @brief Animation event system for state machines
+ */
+class AnimationEventSystem {
+public:
+    AnimationEventSystem();
+    ~AnimationEventSystem();
+    
+    // Event registration
+    int addEventListener(AnimationEventType type, AnimationEventHandler handler, int priority = 0);
+    int addEventListener(const std::string& eventName, AnimationEventHandler handler, int priority = 0);
+    void removeEventListener(int listenerId);
+    void removeAllListeners();
+    void removeListenersForEvent(AnimationEventType type);
+    void removeListenersForEvent(const std::string& eventName);
+    
+    // Enable/disable listeners
+    void setListenerEnabled(int listenerId, bool enabled);
+    bool isListenerEnabled(int listenerId) const;
+    
+    // Event dispatching
+    void dispatchEvent(const AnimationEvent& event);
+    void dispatchEvent(AnimationEventType type, const std::string& stateName = "");
+    void queueEvent(const AnimationEvent& event);
+    void processQueuedEvents();
+    void clearEventQueue();
+    
+    // Frame/time event scheduling
+    void scheduleFrameEvent(const std::string& animationName, int frame, const std::string& eventName);
+    void scheduleTimeEvent(const std::string& animationName, float time, const std::string& eventName);
+    void clearScheduledEvents(const std::string& animationName);
+    void clearAllScheduledEvents();
+    
+    // Check scheduled events against current animation time
+    void checkScheduledEvents(const std::string& animationName, float currentTime, int currentFrame);
+    
+    // Statistics
+    size_t getListenerCount() const { return listeners.size(); }
+    size_t getQueuedEventCount() const { return eventQueue.size(); }
+
+private:
+    std::vector<AnimationEventListener> listeners;
+    std::vector<AnimationEvent> eventQueue;
+    int nextListenerId;
+    
+    struct ScheduledEvent {
+        std::string animationName;
+        std::string eventName;
+        float triggerTime;
+        int triggerFrame;
+        bool isFrameBased;
+        bool triggered;
+    };
+    std::vector<ScheduledEvent> scheduledEvents;
+    
+    void sortListenersByPriority();
+};
+
+/**
+ * @brief Animation notify for marking events in animations
+ */
+struct AnimationNotify {
+    std::string name;
+    float time;
+    std::string payload;
+    bool triggered;
+    
+    AnimationNotify(const std::string& n, float t, const std::string& p = "")
+        : name(n), time(t), payload(p), triggered(false) {}
+};
+
+/**
+ * @brief Animation track with notifies
+ */
+class AnimationNotifyTrack {
+public:
+    AnimationNotifyTrack(const std::string& animationName);
+    ~AnimationNotifyTrack();
+    
+    void addNotify(const std::string& name, float time, const std::string& payload = "");
+    void removeNotify(const std::string& name);
+    void clearNotifies();
+    
+    void update(float previousTime, float currentTime, AnimationEventSystem* eventSystem);
+    void reset();
+    
+    const std::string& getAnimationName() const { return animationName; }
+    size_t getNotifyCount() const { return notifies.size(); }
+
+private:
+    std::string animationName;
+    std::vector<AnimationNotify> notifies;
+};
+
 } // namespace Animation
 } // namespace JJM
 
