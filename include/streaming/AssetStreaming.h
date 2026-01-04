@@ -518,6 +518,409 @@ private:
     friend class AssetHandle;
 };
 
+// ============================================================================
+// STREAMING REGIONS - Spatial-based asset streaming
+// ============================================================================
+
+struct StreamingRegion {
+    std::string regionId;
+    glm::vec3 center{0.0f};
+    float radius{100.0f};
+    std::vector<std::string> assetIds;
+    AssetPriority defaultPriority{AssetPriority::Medium};
+    bool isActive{false};
+    float loadDistance{150.0f};     // Distance at which to start loading
+    float unloadDistance{200.0f};   // Distance at which to unload
+    
+    bool contains(const glm::vec3& point) const {
+        return glm::distance(center, point) <= radius;
+    }
+    
+    float distanceTo(const glm::vec3& point) const {
+        return glm::distance(center, point);
+    }
+};
+
+class StreamingRegionManager {
+public:
+    StreamingRegionManager(StreamingManager& streaming) : streamingManager(streaming) {}
+    
+    // Region management
+    void registerRegion(const StreamingRegion& region);
+    void unregisterRegion(const std::string& regionId);
+    StreamingRegion* getRegion(const std::string& regionId);
+    const std::vector<StreamingRegion>& getRegions() const { return regions; }
+    
+    // Position-based streaming
+    void updateViewerPosition(const glm::vec3& position);
+    void updateViewerPositions(const std::vector<glm::vec3>& positions);  // Multiple viewers
+    
+    // Region state
+    std::vector<std::string> getActiveRegions() const;
+    std::vector<std::string> getLoadingRegions() const;
+    std::vector<std::string> getPendingRegions() const;
+    
+    // Configuration
+    void setHysteresisMargin(float margin) { hysteresisMargin = margin; }
+    void setPredictionEnabled(bool enabled) { predictionEnabled = enabled; }
+    void setVelocityPredictionTime(float seconds) { velocityPredictionTime = seconds; }
+    
+    // Velocity-based prediction
+    void setViewerVelocity(const glm::vec3& velocity);
+    std::vector<std::string> predictNextRegions(float lookAheadTime) const;
+    
+    // Debug
+    struct RegionStats {
+        size_t totalRegions;
+        size_t activeRegions;
+        size_t loadingRegions;
+        size_t assetsInActiveRegions;
+        size_t assetsLoaded;
+        float memoryUsedByActiveRegions;
+    };
+    RegionStats getStatistics() const;
+
+private:
+    StreamingManager& streamingManager;
+    std::vector<StreamingRegion> regions;
+    glm::vec3 currentPosition{0.0f};
+    glm::vec3 currentVelocity{0.0f};
+    float hysteresisMargin{10.0f};
+    bool predictionEnabled{true};
+    float velocityPredictionTime{2.0f};
+    
+    void activateRegion(StreamingRegion& region);
+    void deactivateRegion(StreamingRegion& region);
+    bool shouldActivateRegion(const StreamingRegion& region, const glm::vec3& position) const;
+    bool shouldDeactivateRegion(const StreamingRegion& region, const glm::vec3& position) const;
+};
+
+// ============================================================================
+// PREFETCH SYSTEM - Predictive asset loading
+// ============================================================================
+
+enum class PrefetchStrategy {
+    None,               // No prefetching
+    Spatial,            // Based on proximity to streaming regions
+    Sequential,         // Based on asset access patterns
+    GraphBased,         // Based on scene graph traversal
+    MLPredicted,        // Machine learning predictions
+    Hybrid              // Combination of strategies
+};
+
+struct PrefetchHint {
+    std::string assetId;
+    float probability{1.0f};        // Likelihood of needing this asset
+    float estimatedTimeToNeed{0.0f}; // Seconds until asset is needed
+    AssetPriority suggestedPriority{AssetPriority::Low};
+    std::string reason;             // Debug info about why prefetching
+};
+
+class PrefetchPredictor {
+public:
+    virtual ~PrefetchPredictor() = default;
+    virtual std::vector<PrefetchHint> predict(const std::string& currentContext) = 0;
+    virtual void recordAccess(const std::string& assetId, float timestamp) = 0;
+    virtual void train() {}  // For ML-based predictors
+};
+
+class SequentialPrefetcher : public PrefetchPredictor {
+public:
+    std::vector<PrefetchHint> predict(const std::string& currentContext) override;
+    void recordAccess(const std::string& assetId, float timestamp) override;
+    
+    // Configuration
+    void setPatternWindowSize(size_t size) { patternWindowSize = size; }
+    void setMinConfidence(float confidence) { minConfidence = confidence; }
+    
+private:
+    size_t patternWindowSize{5};
+    float minConfidence{0.3f};
+    std::vector<std::pair<std::string, float>> accessHistory;
+    std::unordered_map<std::string, std::vector<std::string>> transitionGraph;
+};
+
+class SpatialPrefetcher : public PrefetchPredictor {
+public:
+    SpatialPrefetcher(StreamingRegionManager& regionMgr) : regionManager(regionMgr) {}
+    
+    std::vector<PrefetchHint> predict(const std::string& currentContext) override;
+    void recordAccess(const std::string& assetId, float timestamp) override;
+    
+    void setLookAheadDistance(float distance) { lookAheadDistance = distance; }
+    void setMaxPrefetchCount(size_t count) { maxPrefetchCount = count; }
+    
+private:
+    StreamingRegionManager& regionManager;
+    float lookAheadDistance{50.0f};
+    size_t maxPrefetchCount{10};
+};
+
+class PrefetchManager {
+public:
+    PrefetchManager(StreamingManager& streaming) : streamingManager(streaming) {}
+    
+    // Strategy management
+    void setStrategy(PrefetchStrategy strategy);
+    PrefetchStrategy getStrategy() const { return currentStrategy; }
+    void addPredictor(std::unique_ptr<PrefetchPredictor> predictor);
+    
+    // Prefetch control
+    void update(const std::string& currentContext);
+    void addManualHint(const PrefetchHint& hint);
+    void clearHints();
+    void executePrefetch();
+    
+    // Configuration
+    void setMaxPrefetchBudget(size_t bytes) { maxPrefetchBudget = bytes; }
+    void setPrefetchThreshold(float probability) { prefetchThreshold = probability; }
+    void setEnabled(bool enabled) { this->enabled = enabled; }
+    bool isEnabled() const { return enabled; }
+    
+    // Statistics
+    struct PrefetchStats {
+        size_t hitsCount;       // Prefetched assets that were actually used
+        size_t missCount;       // Prefetched assets that were never used
+        size_t wastedBytes;     // Memory used by unused prefetched assets
+        float hitRate;
+        float averagePredictionTime;
+    };
+    PrefetchStats getStatistics() const;
+    void resetStatistics();
+    
+private:
+    StreamingManager& streamingManager;
+    PrefetchStrategy currentStrategy{PrefetchStrategy::None};
+    std::vector<std::unique_ptr<PrefetchPredictor>> predictors;
+    std::vector<PrefetchHint> pendingHints;
+    std::unordered_set<std::string> prefetchedAssets;
+    size_t maxPrefetchBudget{100 * 1024 * 1024};  // 100MB default
+    float prefetchThreshold{0.5f};
+    bool enabled{true};
+    PrefetchStats stats{};
+};
+
+// ============================================================================
+// DEPENDENCY TRACKING - Asset dependency graph
+// ============================================================================
+
+struct AssetDependency {
+    std::string dependentAssetId;   // Asset that depends on another
+    std::string dependencyAssetId;  // Asset being depended upon
+    bool isRequired{true};          // If false, dependency is optional
+    bool loadFirst{true};           // If true, load dependency before dependent
+    float priority{1.0f};           // Priority multiplier for dependency
+};
+
+class DependencyGraph {
+public:
+    // Dependency management
+    void addDependency(const AssetDependency& dep);
+    void removeDependency(const std::string& dependentId, const std::string& dependencyId);
+    void clearDependencies(const std::string& assetId);
+    
+    // Querying
+    std::vector<std::string> getDependencies(const std::string& assetId) const;
+    std::vector<std::string> getDependents(const std::string& assetId) const;
+    std::vector<std::string> getAllDependencies(const std::string& assetId) const;  // Recursive
+    std::vector<std::string> getAllDependents(const std::string& assetId) const;    // Recursive
+    
+    // Topological operations
+    std::vector<std::string> getLoadOrder(const std::string& assetId) const;
+    std::vector<std::string> getLoadOrder(const std::vector<std::string>& assetIds) const;
+    bool hasCyclicDependency(const std::string& assetId) const;
+    std::vector<std::pair<std::string, std::string>> detectCycles() const;
+    
+    // Graph info
+    size_t getDependencyCount(const std::string& assetId) const;
+    size_t getDependentCount(const std::string& assetId) const;
+    size_t getTotalEdges() const;
+    size_t getTotalNodes() const;
+    
+    // Serialization
+    void serialize(std::ostream& stream) const;
+    void deserialize(std::istream& stream);
+    
+    // Visualization (for debugging)
+    std::string toDotFormat() const;  // GraphViz DOT format
+    
+private:
+    std::unordered_map<std::string, std::vector<AssetDependency>> dependencies;
+    std::unordered_map<std::string, std::vector<std::string>> reverseDependencies;
+    
+    void topologicalSort(const std::string& assetId, 
+                         std::unordered_set<std::string>& visited,
+                         std::vector<std::string>& result) const;
+    bool detectCycleDFS(const std::string& node,
+                        std::unordered_set<std::string>& visited,
+                        std::unordered_set<std::string>& recursionStack) const;
+};
+
+class DependencyAwareLoader {
+public:
+    DependencyAwareLoader(StreamingManager& streaming, DependencyGraph& graph)
+        : streamingManager(streaming), dependencyGraph(graph) {}
+    
+    // Loading with dependency resolution
+    void loadWithDependencies(const std::string& assetId, AssetPriority priority = AssetPriority::Medium);
+    void loadWithDependencies(const std::vector<std::string>& assetIds, AssetPriority priority = AssetPriority::Medium);
+    
+    // Unloading with dependency checking
+    bool canSafelyUnload(const std::string& assetId) const;
+    void unloadWithDependents(const std::string& assetId);
+    
+    // Batch operations
+    struct LoadBatch {
+        std::vector<std::string> assetIds;
+        std::vector<std::string> loadOrder;
+        size_t estimatedSize;
+        float estimatedTime;
+    };
+    LoadBatch createLoadBatch(const std::vector<std::string>& assetIds) const;
+    void executeLoadBatch(const LoadBatch& batch, AssetPriority priority = AssetPriority::Medium);
+    
+private:
+    StreamingManager& streamingManager;
+    DependencyGraph& dependencyGraph;
+};
+
+// ============================================================================
+// COMPRESSION SUPPORT - Asset compression and decompression
+// ============================================================================
+
+enum class CompressionFormat {
+    None,
+    LZ4,            // Fast compression/decompression
+    ZSTD,           // Balanced compression ratio/speed
+    LZMA,           // High compression ratio
+    Custom          // User-defined compression
+};
+
+struct CompressionInfo {
+    CompressionFormat format{CompressionFormat::None};
+    size_t uncompressedSize{0};
+    size_t compressedSize{0};
+    uint32_t compressionLevel{0};   // Format-specific level
+    std::string dictionaryId;       // Optional compression dictionary
+    
+    float getCompressionRatio() const {
+        return compressedSize > 0 ? static_cast<float>(uncompressedSize) / compressedSize : 1.0f;
+    }
+};
+
+class ICompressor {
+public:
+    virtual ~ICompressor() = default;
+    virtual CompressionFormat getFormat() const = 0;
+    virtual std::vector<uint8_t> compress(const uint8_t* data, size_t size, uint32_t level = 0) = 0;
+    virtual std::vector<uint8_t> decompress(const uint8_t* data, size_t compressedSize, size_t uncompressedSize) = 0;
+    virtual size_t getMaxCompressedSize(size_t uncompressedSize) const = 0;
+    
+    // Dictionary support (optional)
+    virtual void setDictionary(const std::vector<uint8_t>& dictionary) {}
+    virtual void clearDictionary() {}
+};
+
+class LZ4Compressor : public ICompressor {
+public:
+    CompressionFormat getFormat() const override { return CompressionFormat::LZ4; }
+    std::vector<uint8_t> compress(const uint8_t* data, size_t size, uint32_t level = 0) override;
+    std::vector<uint8_t> decompress(const uint8_t* data, size_t compressedSize, size_t uncompressedSize) override;
+    size_t getMaxCompressedSize(size_t uncompressedSize) const override;
+};
+
+class ZSTDCompressor : public ICompressor {
+public:
+    CompressionFormat getFormat() const override { return CompressionFormat::ZSTD; }
+    std::vector<uint8_t> compress(const uint8_t* data, size_t size, uint32_t level = 0) override;
+    std::vector<uint8_t> decompress(const uint8_t* data, size_t compressedSize, size_t uncompressedSize) override;
+    size_t getMaxCompressedSize(size_t uncompressedSize) const override;
+    
+    void setDictionary(const std::vector<uint8_t>& dictionary) override;
+    void clearDictionary() override;
+    
+private:
+    std::vector<uint8_t> dictionary;
+};
+
+class CompressionManager {
+public:
+    // Compressor registration
+    void registerCompressor(std::unique_ptr<ICompressor> compressor);
+    ICompressor* getCompressor(CompressionFormat format);
+    
+    // High-level operations
+    std::vector<uint8_t> compressData(const uint8_t* data, size_t size, CompressionFormat format, uint32_t level = 0);
+    std::vector<uint8_t> decompressData(const uint8_t* data, size_t compressedSize, size_t uncompressedSize, CompressionFormat format);
+    
+    // Auto-select best format
+    CompressionFormat selectOptimalFormat(size_t dataSize, bool preferSpeed = true) const;
+    
+    // Dictionary management
+    void registerDictionary(const std::string& id, const std::vector<uint8_t>& dictionary);
+    const std::vector<uint8_t>* getDictionary(const std::string& id) const;
+    
+    // Statistics
+    struct CompressionStats {
+        size_t totalBytesCompressed;
+        size_t totalBytesDecompressed;
+        size_t totalBytesSaved;
+        float averageCompressionRatio;
+        float averageCompressionSpeed;    // MB/s
+        float averageDecompressionSpeed;  // MB/s
+    };
+    CompressionStats getStatistics() const;
+    
+private:
+    std::unordered_map<CompressionFormat, std::unique_ptr<ICompressor>> compressors;
+    std::unordered_map<std::string, std::vector<uint8_t>> dictionaries;
+    mutable CompressionStats stats{};
+};
+
+// ============================================================================
+// STREAMING CONFIGURATION - Comprehensive settings
+// ============================================================================
+
+struct StreamingConfiguration {
+    // Memory settings
+    size_t maxMemoryBudget{512 * 1024 * 1024};      // 512MB
+    size_t reservedMemory{64 * 1024 * 1024};        // 64MB reserved
+    float memoryPressureThreshold{0.85f};
+    
+    // Worker settings
+    size_t workerCount{4};
+    size_t maxConcurrentLoads{8};
+    std::chrono::milliseconds loadTimeout{30000};
+    
+    // Cache settings
+    size_t cacheSize{256 * 1024 * 1024};            // 256MB
+    float cacheEvictionThreshold{0.9f};
+    
+    // Prefetch settings
+    PrefetchStrategy prefetchStrategy{PrefetchStrategy::Hybrid};
+    size_t prefetchBudget{100 * 1024 * 1024};       // 100MB
+    float prefetchThreshold{0.5f};
+    
+    // Compression settings
+    CompressionFormat defaultCompression{CompressionFormat::LZ4};
+    bool decompressOnLoad{true};
+    
+    // Region streaming
+    float regionLoadDistance{150.0f};
+    float regionUnloadDistance{200.0f};
+    float hysteresisMargin{10.0f};
+    bool velocityPrediction{true};
+    
+    // Debug settings
+    bool enableProfiling{false};
+    bool enableLogging{false};
+    bool validateDependencies{true};
+    
+    // Serialization
+    void saveToFile(const std::filesystem::path& path) const;
+    static StreamingConfiguration loadFromFile(const std::filesystem::path& path);
+};
+
 // Utility functions for asset management
 namespace AssetUtils {
     // Path utilities
@@ -538,6 +941,11 @@ namespace AssetUtils {
     AssetMetadata createTextureMetadata(const std::string& id, const std::filesystem::path& path, uint32_t width, uint32_t height);
     AssetMetadata createMeshMetadata(const std::string& id, const std::filesystem::path& path, uint32_t vertexCount);
     AssetMetadata createAudioMetadata(const std::string& id, const std::filesystem::path& path, float duration);
+    
+    // Compression helpers
+    CompressionInfo analyzeForCompression(const uint8_t* data, size_t size);
+    bool isCompressible(const std::string& assetType);
+    CompressionFormat recommendCompression(const std::string& assetType, size_t size);
 }
 
 } // namespace Streaming
