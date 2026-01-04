@@ -64,6 +64,334 @@ struct GPUStats {
     float gpuTime = 0.0f;          // ms
 };
 
+// =============================================================================
+// GPU Profiling - Timing Queries and Pipeline Statistics
+// =============================================================================
+
+/**
+ * @brief GPU pipeline stages for profiling
+ */
+enum class GPUPipelineStage {
+    VertexInput,
+    VertexShader,
+    TessellationControl,
+    TessellationEval,
+    GeometryShader,
+    FragmentShader,
+    ComputeShader,
+    Transfer,
+    Present,
+    RayTracing
+};
+
+/**
+ * @brief GPU query types
+ */
+enum class GPUQueryType {
+    Timestamp,
+    PipelineStatistics,
+    Occlusion,
+    PrimitivesGenerated,
+    TransformFeedback,
+    BinaryOcclusion
+};
+
+/**
+ * @brief GPU timing query result
+ */
+struct GPUTimingResult {
+    std::string name;
+    uint64_t startTimestamp;
+    uint64_t endTimestamp;
+    double durationMs;
+    GPUPipelineStage stage;
+    int frameNumber;
+    bool valid;
+    
+    GPUTimingResult()
+        : startTimestamp(0)
+        , endTimestamp(0)
+        , durationMs(0.0)
+        , stage(GPUPipelineStage::VertexShader)
+        , frameNumber(0)
+        , valid(false)
+    {}
+};
+
+/**
+ * @brief GPU pipeline statistics
+ */
+struct GPUPipelineStats {
+    uint64_t inputAssemblyVertices;
+    uint64_t inputAssemblyPrimitives;
+    uint64_t vertexShaderInvocations;
+    uint64_t geometryShaderInvocations;
+    uint64_t geometryShaderPrimitives;
+    uint64_t clippingInvocations;
+    uint64_t clippingPrimitives;
+    uint64_t fragmentShaderInvocations;
+    uint64_t tessControlPatches;
+    uint64_t tessEvalShaderInvocations;
+    uint64_t computeShaderInvocations;
+    
+    GPUPipelineStats()
+        : inputAssemblyVertices(0)
+        , inputAssemblyPrimitives(0)
+        , vertexShaderInvocations(0)
+        , geometryShaderInvocations(0)
+        , geometryShaderPrimitives(0)
+        , clippingInvocations(0)
+        , clippingPrimitives(0)
+        , fragmentShaderInvocations(0)
+        , tessControlPatches(0)
+        , tessEvalShaderInvocations(0)
+        , computeShaderInvocations(0)
+    {}
+};
+
+/**
+ * @brief GPU memory pool info
+ */
+struct GPUMemoryPool {
+    std::string name;
+    size_t totalSize;
+    size_t usedSize;
+    size_t peakUsage;
+    size_t allocationCount;
+    bool deviceLocal;
+    bool hostVisible;
+    
+    GPUMemoryPool()
+        : totalSize(0)
+        , usedSize(0)
+        , peakUsage(0)
+        , allocationCount(0)
+        , deviceLocal(false)
+        , hostVisible(false)
+    {}
+    
+    float getUsagePercent() const {
+        return totalSize > 0 ? (static_cast<float>(usedSize) / totalSize) * 100.0f : 0.0f;
+    }
+};
+
+/**
+ * @brief GPU resource tracking entry
+ */
+struct GPUResourceInfo {
+    std::string name;
+    std::string type;       // "Texture", "Buffer", "RenderTarget", "Pipeline"
+    size_t sizeBytes;
+    int width;
+    int height;
+    int mipLevels;
+    std::string format;
+    bool inUse;
+    int referenceCount;
+    std::chrono::steady_clock::time_point lastAccess;
+    
+    GPUResourceInfo()
+        : sizeBytes(0)
+        , width(0)
+        , height(0)
+        , mipLevels(1)
+        , inUse(true)
+        , referenceCount(0)
+    {}
+};
+
+/**
+ * @brief GPU query pool for managing timing queries
+ */
+class GPUQueryPool {
+private:
+    struct QuerySlot {
+        uint32_t queryId;
+        std::string name;
+        GPUQueryType type;
+        bool inUse;
+        bool resultReady;
+        uint64_t result;
+    };
+    
+    std::vector<QuerySlot> queries;
+    uint32_t poolSize;
+    uint32_t nextFreeSlot;
+    uint64_t timestampPeriod;   // nanoseconds per tick
+    
+public:
+    GPUQueryPool(uint32_t size = 256);
+    
+    uint32_t allocateQuery(GPUQueryType type, const std::string& name);
+    void releaseQuery(uint32_t slot);
+    void reset();
+    
+    bool isResultReady(uint32_t slot) const;
+    uint64_t getResult(uint32_t slot) const;
+    
+    void setTimestampPeriod(uint64_t period) { timestampPeriod = period; }
+    double ticksToMs(uint64_t ticks) const;
+    
+    size_t getActiveQueryCount() const;
+    size_t getPoolSize() const { return poolSize; }
+};
+
+/**
+ * @brief GPU profiler for graphics pipeline analysis
+ */
+class GPUProfiler {
+private:
+    static GPUProfiler* instance;
+    
+    // Query management
+    std::unique_ptr<GPUQueryPool> queryPool;
+    std::unordered_map<std::string, std::pair<uint32_t, uint32_t>> activeTimers; // start, end query IDs
+    
+    // Results
+    std::vector<GPUTimingResult> frameResults;
+    std::vector<GPUTimingResult> historyResults;
+    std::unordered_map<std::string, std::vector<double>> timerHistory;
+    
+    // Pipeline statistics
+    GPUPipelineStats currentStats;
+    GPUPipelineStats frameStats;
+    bool pipelineStatsEnabled;
+    
+    // Memory tracking
+    std::vector<GPUMemoryPool> memoryPools;
+    std::unordered_map<std::string, GPUResourceInfo> trackedResources;
+    size_t totalGPUMemory;
+    size_t usedGPUMemory;
+    size_t peakGPUMemory;
+    
+    // Frame timing
+    int currentFrame;
+    double lastFrameGPUTime;
+    std::vector<double> frameGPUTimes;
+    
+    // Configuration
+    bool enabled;
+    bool calibrated;
+    int frameLatency;           // Frames to wait for results
+    size_t maxHistorySize;
+    
+    mutable std::mutex profilerMutex;
+    
+    GPUProfiler();
+    
+public:
+    ~GPUProfiler();
+    
+    static GPUProfiler* getInstance();
+    static void cleanup();
+    
+    // Initialization
+    void initialize(uint32_t queryPoolSize = 512);
+    void calibrate();
+    bool isCalibrated() const { return calibrated; }
+    
+    // Frame management
+    void beginFrame();
+    void endFrame();
+    int getCurrentFrame() const { return currentFrame; }
+    
+    // Timing queries
+    void beginTimer(const std::string& name, GPUPipelineStage stage = GPUPipelineStage::FragmentShader);
+    void endTimer(const std::string& name);
+    
+    // Get results (may be from previous frames due to GPU latency)
+    double getTimerResult(const std::string& name) const;
+    double getAverageTime(const std::string& name) const;
+    const std::vector<GPUTimingResult>& getFrameResults() const { return frameResults; }
+    
+    // Pipeline statistics
+    void enablePipelineStats(bool enable) { pipelineStatsEnabled = enable; }
+    void beginPipelineStatsQuery();
+    void endPipelineStatsQuery();
+    const GPUPipelineStats& getPipelineStats() const { return currentStats; }
+    
+    // Memory tracking
+    void registerMemoryPool(const std::string& name, size_t totalSize, bool deviceLocal, bool hostVisible);
+    void updatePoolUsage(const std::string& name, size_t used, size_t allocations);
+    const std::vector<GPUMemoryPool>& getMemoryPools() const { return memoryPools; }
+    
+    void trackResource(const std::string& name, const GPUResourceInfo& info);
+    void untrackResource(const std::string& name);
+    void updateResourceAccess(const std::string& name);
+    const std::unordered_map<std::string, GPUResourceInfo>& getTrackedResources() const { return trackedResources; }
+    
+    size_t getTotalGPUMemory() const { return totalGPUMemory; }
+    size_t getUsedGPUMemory() const { return usedGPUMemory; }
+    size_t getPeakGPUMemory() const { return peakGPUMemory; }
+    
+    // Frame GPU time
+    double getLastFrameGPUTime() const { return lastFrameGPUTime; }
+    double getAverageFrameGPUTime() const;
+    
+    // Analysis
+    std::vector<std::string> findBottlenecks(double thresholdMs = 2.0) const;
+    std::string getStageWithMostTime() const;
+    
+    // Reporting
+    std::string generateReport() const;
+    void exportToChrome(const std::string& filepath) const;
+    
+    // Configuration
+    void setEnabled(bool enable) { enabled = enable; }
+    bool isEnabled() const { return enabled; }
+    void setFrameLatency(int latency) { frameLatency = latency; }
+    void setMaxHistorySize(size_t size) { maxHistorySize = size; }
+    
+    // Clear/reset
+    void clear();
+    void resetStats();
+    
+private:
+    void collectResults();
+    void updateHistory(const std::string& name, double timeMs);
+};
+
+/**
+ * @brief RAII GPU timer scope
+ */
+class ScopedGPUTimer {
+private:
+    std::string name;
+    bool active;
+    
+public:
+    ScopedGPUTimer(const std::string& timerName, GPUPipelineStage stage = GPUPipelineStage::FragmentShader);
+    ~ScopedGPUTimer();
+    
+    ScopedGPUTimer(const ScopedGPUTimer&) = delete;
+    ScopedGPUTimer& operator=(const ScopedGPUTimer&) = delete;
+};
+
+/**
+ * @brief GPU marker for debug regions (shows in graphics debuggers)
+ */
+class GPUDebugMarker {
+public:
+    static void begin(const std::string& name, float r = 1.0f, float g = 1.0f, float b = 1.0f);
+    static void end();
+    static void insert(const std::string& text);
+};
+
+/**
+ * @brief Scoped GPU debug region
+ */
+class ScopedGPUDebugRegion {
+private:
+    std::string name;
+    
+public:
+    ScopedGPUDebugRegion(const std::string& regionName, float r = 1.0f, float g = 1.0f, float b = 1.0f);
+    ~ScopedGPUDebugRegion();
+    
+    ScopedGPUDebugRegion(const ScopedGPUDebugRegion&) = delete;
+    ScopedGPUDebugRegion& operator=(const ScopedGPUDebugRegion&) = delete;
+};
+
 struct ProfileEntry {
     std::string name;
     std::chrono::high_resolution_clock::time_point startTime;
@@ -362,11 +690,28 @@ public:
     #define PROFILE_SCOPE(name) ScopedTimer timer##__LINE__(name)
     #define PROFILE_BEGIN(name) PerformanceProfiler::getInstance()->beginProfile(name)
     #define PROFILE_END(name) PerformanceProfiler::getInstance()->endProfile(name)
+    
+    // GPU profiling macros
+    #define GPU_PROFILE_SCOPE(name) ScopedGPUTimer gpuTimer##__LINE__(name)
+    #define GPU_PROFILE_SCOPE_STAGE(name, stage) ScopedGPUTimer gpuTimer##__LINE__(name, stage)
+    #define GPU_PROFILE_BEGIN(name) GPUProfiler::getInstance()->beginTimer(name)
+    #define GPU_PROFILE_END(name) GPUProfiler::getInstance()->endTimer(name)
+    #define GPU_DEBUG_REGION(name) ScopedGPUDebugRegion gpuRegion##__LINE__(name)
+    #define GPU_DEBUG_REGION_COLOR(name, r, g, b) ScopedGPUDebugRegion gpuRegion##__LINE__(name, r, g, b)
+    #define GPU_DEBUG_MARKER(text) GPUDebugMarker::insert(text)
 #else
     #define PROFILE_FUNCTION()
     #define PROFILE_SCOPE(name)
     #define PROFILE_BEGIN(name)
     #define PROFILE_END(name)
+    
+    #define GPU_PROFILE_SCOPE(name)
+    #define GPU_PROFILE_SCOPE_STAGE(name, stage)
+    #define GPU_PROFILE_BEGIN(name)
+    #define GPU_PROFILE_END(name)
+    #define GPU_DEBUG_REGION(name)
+    #define GPU_DEBUG_REGION_COLOR(name, r, g, b)
+    #define GPU_DEBUG_MARKER(text)
 #endif
 
 } // namespace Utils
