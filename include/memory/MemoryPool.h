@@ -6,9 +6,19 @@
 #include <memory>
 #include <mutex>
 #include <atomic>
+#include <functional>
+#include <string>
+#include <array>
+#include <bitset>
+#include <chrono>
+#include <unordered_map>
 
 namespace JJM {
 namespace Memory {
+
+// =============================================================================
+// Memory Block
+// =============================================================================
 
 class MemoryBlock {
 private:
@@ -28,6 +38,312 @@ public:
     void setAllocated(bool state) { allocated = state; }
     void setNext(MemoryBlock* block) { next = block; }
     MemoryBlock* getNext() const { return next; }
+};
+
+// =============================================================================
+// Advanced Memory Pool Types
+// =============================================================================
+
+/**
+ * @brief Pool allocation strategy
+ */
+enum class PoolAllocationStrategy {
+    FirstFit,           // First free block that fits
+    BestFit,            // Smallest free block that fits
+    NextFit,            // Search from last allocation point
+    Buddy,              // Power-of-2 buddy allocation
+    Slab                // Fixed-size object caching
+};
+
+/**
+ * @brief Memory pool statistics
+ */
+struct PoolStatistics {
+    size_t totalBytes;
+    size_t allocatedBytes;
+    size_t peakAllocatedBytes;
+    size_t freeBytes;
+    size_t allocationCount;
+    size_t deallocationCount;
+    size_t failedAllocations;
+    size_t fragmentedBlocks;
+    float fragmentation;            // 0.0 - 1.0
+    float utiliziation;             // 0.0 - 1.0
+    std::chrono::nanoseconds totalAllocationTime;
+    std::chrono::nanoseconds totalDeallocationTime;
+    
+    PoolStatistics()
+        : totalBytes(0)
+        , allocatedBytes(0)
+        , peakAllocatedBytes(0)
+        , freeBytes(0)
+        , allocationCount(0)
+        , deallocationCount(0)
+        , failedAllocations(0)
+        , fragmentedBlocks(0)
+        , fragmentation(0.0f)
+        , utiliziation(0.0f)
+    {}
+};
+
+/**
+ * @brief Memory allocation info for debugging
+ */
+struct AllocationInfo {
+    void* address;
+    size_t size;
+    std::string file;
+    int line;
+    std::string function;
+    std::chrono::steady_clock::time_point timestamp;
+    std::string tag;
+    
+    AllocationInfo()
+        : address(nullptr)
+        , size(0)
+        , line(0)
+    {}
+};
+
+/**
+ * @brief Memory leak detection entry
+ */
+struct LeakInfo {
+    AllocationInfo allocation;
+    size_t leakSize;
+    bool isReported;
+};
+
+// =============================================================================
+// Buddy Allocator - Power-of-2 allocation
+// =============================================================================
+
+/**
+ * @brief Buddy system allocator for power-of-2 allocations
+ */
+class BuddyAllocator {
+private:
+    static constexpr int MAX_ORDER = 20;  // Up to 1MB blocks
+    
+    void* m_memory;
+    size_t m_totalSize;
+    int m_maxOrder;
+    
+    // Free lists for each order
+    std::array<MemoryBlock*, MAX_ORDER + 1> m_freeLists;
+    
+    // Bitmap to track allocated blocks
+    std::vector<std::bitset<(1 << MAX_ORDER)>> m_splitBitmaps;
+    
+    mutable std::mutex m_mutex;
+    PoolStatistics m_stats;
+    
+public:
+    BuddyAllocator(size_t totalSize);
+    ~BuddyAllocator();
+    
+    void* allocate(size_t size);
+    void deallocate(void* ptr, size_t size);
+    
+    // Query
+    size_t getTotalSize() const { return m_totalSize; }
+    size_t getFreeSize() const;
+    const PoolStatistics& getStats() const { return m_stats; }
+    
+    // Utility
+    bool isValidPointer(void* ptr) const;
+    static int sizeToOrder(size_t size);
+    static size_t orderToSize(int order);
+    
+private:
+    void* allocateBlock(int order);
+    void freeBlock(void* ptr, int order);
+    int findBuddyIndex(void* ptr, int order) const;
+    void* getBuddy(void* ptr, int order) const;
+    void splitBlock(int order);
+    bool mergeBlocks(void* ptr, int order);
+};
+
+// =============================================================================
+// Slab Allocator - Object caching
+// =============================================================================
+
+/**
+ * @brief Slab cache for fixed-size objects
+ */
+class SlabCache {
+private:
+    struct Slab {
+        void* memory;
+        std::vector<bool> freeMap;
+        size_t freeCount;
+        Slab* next;
+        Slab* prev;
+    };
+    
+    std::string m_name;
+    size_t m_objectSize;
+    size_t m_objectsPerSlab;
+    size_t m_alignment;
+    
+    Slab* m_partialSlabs;       // Slabs with some free objects
+    Slab* m_fullSlabs;          // Completely allocated slabs
+    Slab* m_emptySlabs;         // Completely free slabs
+    
+    size_t m_maxEmptySlabs;     // Maximum cached empty slabs
+    size_t m_emptySlabCount;
+    
+    // Constructor/destructor for objects
+    std::function<void(void*)> m_constructor;
+    std::function<void(void*)> m_destructor;
+    
+    mutable std::mutex m_mutex;
+    PoolStatistics m_stats;
+    
+public:
+    SlabCache(const std::string& name, size_t objectSize, size_t objectsPerSlab = 64,
+              size_t alignment = alignof(std::max_align_t));
+    ~SlabCache();
+    
+    // Object allocation
+    void* allocate();
+    void deallocate(void* ptr);
+    
+    // Batch operations
+    std::vector<void*> allocateBatch(size_t count);
+    void deallocateBatch(const std::vector<void*>& ptrs);
+    
+    // Constructor/destructor
+    void setConstructor(std::function<void(void*)> ctor) { m_constructor = ctor; }
+    void setDestructor(std::function<void(void*)> dtor) { m_destructor = dtor; }
+    
+    // Cache management
+    void shrink();                  // Free empty slabs
+    void grow(size_t slabCount);    // Pre-allocate slabs
+    void reap();                    // Aggressive memory reclamation
+    
+    // Query
+    const std::string& getName() const { return m_name; }
+    size_t getObjectSize() const { return m_objectSize; }
+    const PoolStatistics& getStats() const { return m_stats; }
+    size_t getAllocatedObjects() const;
+    size_t getTotalObjects() const;
+    
+private:
+    Slab* createSlab();
+    void destroySlab(Slab* slab);
+    void* allocateFromSlab(Slab* slab);
+    void deallocateFromSlab(Slab* slab, void* ptr);
+    void moveSlabToList(Slab* slab, Slab** fromList, Slab** toList);
+};
+
+// =============================================================================
+// Ring Buffer Allocator - FIFO allocation
+// =============================================================================
+
+/**
+ * @brief Ring buffer allocator for FIFO allocations
+ */
+class RingBufferAllocator {
+private:
+    void* m_memory;
+    size_t m_size;
+    size_t m_head;
+    size_t m_tail;
+    size_t m_usedBytes;
+    
+    mutable std::mutex m_mutex;
+    PoolStatistics m_stats;
+    
+public:
+    RingBufferAllocator(size_t size);
+    ~RingBufferAllocator();
+    
+    void* allocate(size_t size, size_t alignment = alignof(std::max_align_t));
+    void deallocateOldest();
+    void clear();
+    
+    size_t getUsedBytes() const { return m_usedBytes; }
+    size_t getFreeBytes() const { return m_size - m_usedBytes; }
+    size_t getTotalBytes() const { return m_size; }
+    
+    bool isEmpty() const { return m_usedBytes == 0; }
+    bool isFull() const { return m_usedBytes >= m_size; }
+    
+private:
+    size_t alignUp(size_t value, size_t alignment) const;
+};
+
+// =============================================================================
+// Thread-Local Pool - Per-thread allocation
+// =============================================================================
+
+/**
+ * @brief Thread-local memory pool to avoid contention
+ */
+class ThreadLocalPool {
+private:
+    static thread_local std::unique_ptr<MemoryPool> tl_pool;
+    
+    size_t m_blockSize;
+    size_t m_blocksPerThread;
+    
+public:
+    ThreadLocalPool(size_t blockSize, size_t blocksPerThread);
+    ~ThreadLocalPool();
+    
+    void* allocate();
+    void deallocate(void* ptr);
+    
+    static void initializeThread();
+    static void cleanupThread();
+};
+
+// =============================================================================
+// Memory Arena - Linear allocation with reset
+// =============================================================================
+
+/**
+ * @brief Memory arena for temporary allocations
+ */
+class MemoryArena {
+private:
+    struct Chunk {
+        void* memory;
+        size_t size;
+        size_t used;
+        Chunk* next;
+    };
+    
+    size_t m_defaultChunkSize;
+    Chunk* m_currentChunk;
+    Chunk* m_firstChunk;
+    
+    size_t m_totalAllocated;
+    size_t m_totalUsed;
+    
+    mutable std::mutex m_mutex;
+    
+public:
+    MemoryArena(size_t defaultChunkSize = 64 * 1024);
+    ~MemoryArena();
+    
+    void* allocate(size_t size, size_t alignment = alignof(std::max_align_t));
+    
+    template<typename T, typename... Args>
+    T* construct(Args&&... args) {
+        void* memory = allocate(sizeof(T), alignof(T));
+        return new(memory) T(std::forward<Args>(args)...);
+    }
+    
+    void reset();                   // Reset for reuse (keeps memory)
+    void clear();                   // Free all memory
+    
+    size_t getTotalAllocated() const { return m_totalAllocated; }
+    size_t getTotalUsed() const { return m_totalUsed; }
+    
+private:
+    void allocateNewChunk(size_t minSize);
 };
 
 class MemoryPool {
