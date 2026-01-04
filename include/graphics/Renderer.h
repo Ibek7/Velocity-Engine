@@ -401,6 +401,397 @@ private:
     uint32_t colorToUint32(const Color& color) const;
 };
 
+// =============================================================================
+// RENDER GRAPH - Modern frame-graph based rendering architecture
+// =============================================================================
+
+/**
+ * @brief Resource types managed by render graph
+ */
+enum class RenderResourceType {
+    Texture2D,
+    TextureCube,
+    Texture3D,
+    Buffer,
+    RenderTarget,
+    DepthStencil,
+    Sampler,
+    UniformBuffer,
+    StorageBuffer
+};
+
+/**
+ * @brief Resource usage flags
+ */
+enum class ResourceUsage : uint32_t {
+    None            = 0,
+    ShaderRead      = 1 << 0,
+    ShaderWrite     = 1 << 1,
+    RenderTarget    = 1 << 2,
+    DepthStencil    = 1 << 3,
+    CopySource      = 1 << 4,
+    CopyDest        = 1 << 5,
+    Present         = 1 << 6,
+    ComputeRead     = 1 << 7,
+    ComputeWrite    = 1 << 8
+};
+inline ResourceUsage operator|(ResourceUsage a, ResourceUsage b) {
+    return static_cast<ResourceUsage>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+}
+
+/**
+ * @brief Render graph resource descriptor
+ */
+struct RenderResourceDesc {
+    std::string name;
+    RenderResourceType type{RenderResourceType::Texture2D};
+    int width{0};
+    int height{0};
+    int depth{1};
+    int mipLevels{1};
+    int arrayLayers{1};
+    uint32_t format{0};     // Platform-specific format
+    ResourceUsage usage{ResourceUsage::None};
+    bool persistent{false}; // Survives across frames
+    
+    static RenderResourceDesc Texture2D(const std::string& name, int w, int h, uint32_t fmt) {
+        RenderResourceDesc desc;
+        desc.name = name;
+        desc.type = RenderResourceType::Texture2D;
+        desc.width = w;
+        desc.height = h;
+        desc.format = fmt;
+        return desc;
+    }
+    
+    static RenderResourceDesc RenderTarget(const std::string& name, int w, int h, uint32_t fmt) {
+        RenderResourceDesc desc;
+        desc.name = name;
+        desc.type = RenderResourceType::RenderTarget;
+        desc.width = w;
+        desc.height = h;
+        desc.format = fmt;
+        desc.usage = ResourceUsage::RenderTarget | ResourceUsage::ShaderRead;
+        return desc;
+    }
+    
+    static RenderResourceDesc DepthStencil(const std::string& name, int w, int h) {
+        RenderResourceDesc desc;
+        desc.name = name;
+        desc.type = RenderResourceType::DepthStencil;
+        desc.width = w;
+        desc.height = h;
+        desc.usage = ResourceUsage::DepthStencil | ResourceUsage::ShaderRead;
+        return desc;
+    }
+};
+
+/**
+ * @brief Handle to render graph resource
+ */
+struct RenderResourceHandle {
+    uint32_t index{UINT32_MAX};
+    uint32_t version{0};
+    
+    bool isValid() const { return index != UINT32_MAX; }
+    bool operator==(const RenderResourceHandle& other) const {
+        return index == other.index && version == other.version;
+    }
+};
+
+/**
+ * @brief Render pass type
+ */
+enum class RenderPassType {
+    Graphics,       // Regular graphics rendering
+    Compute,        // Compute shader dispatch
+    Copy,           // Resource copy/blit
+    RayTracing,     // Ray tracing (if supported)
+    Present         // Final presentation
+};
+
+/**
+ * @brief Clear value for render targets
+ */
+struct ClearValue {
+    union {
+        float color[4];
+        struct { float depth; uint8_t stencil; } depthStencil;
+    };
+    bool clearColor{false};
+    bool clearDepth{false};
+    bool clearStencil{false};
+};
+
+/**
+ * @brief Render pass attachment descriptor
+ */
+struct PassAttachment {
+    RenderResourceHandle resource;
+    ResourceUsage usage{ResourceUsage::None};
+    ClearValue clearValue;
+    bool loadPrevious{true};    // Load previous contents
+    bool storeResult{true};     // Store result for later passes
+};
+
+/**
+ * @brief Render pass descriptor
+ */
+struct RenderPassDesc {
+    std::string name;
+    RenderPassType type{RenderPassType::Graphics};
+    std::vector<PassAttachment> colorAttachments;
+    PassAttachment depthStencilAttachment;
+    std::vector<RenderResourceHandle> shaderInputs;
+    std::vector<RenderResourceHandle> shaderOutputs;
+    int queueFamily{0};         // GPU queue to execute on
+    bool async{false};          // Can run async with other passes
+};
+
+/**
+ * @brief Render pass execution callback
+ */
+using RenderPassCallback = std::function<void(class RenderGraphBuilder&, void* userData)>;
+
+/**
+ * @brief Render pass node in the graph
+ */
+class RenderPass {
+public:
+    RenderPass(const std::string& name, RenderPassType type)
+        : m_name(name), m_type(type) {}
+    virtual ~RenderPass() = default;
+    
+    const std::string& getName() const { return m_name; }
+    RenderPassType getType() const { return m_type; }
+    
+    // Resource declarations
+    void addColorOutput(RenderResourceHandle resource, const ClearValue& clear = {});
+    void setDepthStencilOutput(RenderResourceHandle resource, const ClearValue& clear = {});
+    void addShaderInput(RenderResourceHandle resource);
+    void addShaderOutput(RenderResourceHandle resource);
+    
+    // Configuration
+    void setAsync(bool async) { m_async = async; }
+    bool isAsync() const { return m_async; }
+    void setQueueFamily(int queue) { m_queueFamily = queue; }
+    int getQueueFamily() const { return m_queueFamily; }
+    
+    // Execution
+    void setExecuteCallback(RenderPassCallback callback) { m_callback = callback; }
+    void execute(class RenderGraphBuilder& builder, void* userData);
+    
+    // Dependencies
+    const std::vector<RenderResourceHandle>& getInputs() const { return m_inputs; }
+    const std::vector<RenderResourceHandle>& getOutputs() const { return m_outputs; }
+    
+protected:
+    std::string m_name;
+    RenderPassType m_type;
+    std::vector<RenderResourceHandle> m_inputs;
+    std::vector<RenderResourceHandle> m_outputs;
+    std::vector<PassAttachment> m_colorOutputs;
+    PassAttachment m_depthStencilOutput;
+    bool m_async{false};
+    int m_queueFamily{0};
+    RenderPassCallback m_callback;
+};
+
+/**
+ * @brief Render graph builder for constructing frame graph
+ */
+class RenderGraphBuilder {
+public:
+    RenderGraphBuilder() = default;
+    ~RenderGraphBuilder() = default;
+    
+    // Resource creation
+    RenderResourceHandle createTexture(const RenderResourceDesc& desc);
+    RenderResourceHandle createRenderTarget(const std::string& name, int width, int height, uint32_t format);
+    RenderResourceHandle createDepthStencil(const std::string& name, int width, int height);
+    RenderResourceHandle importResource(const std::string& name, void* externalResource, const RenderResourceDesc& desc);
+    
+    // Pass creation
+    RenderPass& addPass(const std::string& name, RenderPassType type = RenderPassType::Graphics);
+    
+    // Graph construction
+    void setBackbuffer(RenderResourceHandle resource);
+    void compile();
+    bool isCompiled() const { return m_compiled; }
+    
+    // Execution
+    void execute(void* userData = nullptr);
+    
+    // Resource access (during pass execution)
+    void* getResource(RenderResourceHandle handle);
+    RenderResourceDesc getResourceDesc(RenderResourceHandle handle) const;
+    bool isResourceValid(RenderResourceHandle handle) const;
+    
+    // Optimization info
+    struct OptimizationInfo {
+        size_t totalPasses;
+        size_t culledPasses;
+        size_t mergedPasses;
+        size_t asyncPasses;
+        size_t resourceAliases;
+        size_t peakMemoryUsage;
+    };
+    OptimizationInfo getOptimizationInfo() const { return m_optimizationInfo; }
+    
+    // Debug
+    std::string exportToDot() const;    // Export to GraphViz format
+    void dumpGraph() const;
+    
+private:
+    struct ResourceSlot {
+        RenderResourceDesc desc;
+        void* resource{nullptr};
+        uint32_t version{0};
+        int firstUse{-1};
+        int lastUse{-1};
+        bool imported{false};
+    };
+    
+    std::vector<ResourceSlot> m_resources;
+    std::vector<std::unique_ptr<RenderPass>> m_passes;
+    std::vector<int> m_executionOrder;
+    RenderResourceHandle m_backbuffer;
+    bool m_compiled{false};
+    OptimizationInfo m_optimizationInfo{};
+    
+    // Compilation
+    void buildDependencyGraph();
+    void topologicalSort();
+    void cullUnusedPasses();
+    void computeResourceLifetimes();
+    void aliasResources();
+    void insertBarriers();
+};
+
+/**
+ * @brief Render graph for frame-based rendering
+ */
+class RenderGraph {
+public:
+    RenderGraph() = default;
+    ~RenderGraph() = default;
+    
+    // Setup
+    void initialize(int backbufferWidth, int backbufferHeight);
+    void shutdown();
+    void resize(int width, int height);
+    
+    // Graph building
+    RenderGraphBuilder& beginFrame();
+    void endFrame();
+    
+    // Preset passes
+    void addGBufferPass(RenderGraphBuilder& builder, const std::string& name);
+    void addLightingPass(RenderGraphBuilder& builder, const std::string& name,
+                         RenderResourceHandle gbufferAlbedo,
+                         RenderResourceHandle gbufferNormal,
+                         RenderResourceHandle gbufferDepth);
+    void addShadowPass(RenderGraphBuilder& builder, const std::string& name, int cascadeIndex);
+    void addSSAOPass(RenderGraphBuilder& builder, const std::string& name,
+                     RenderResourceHandle depthBuffer, RenderResourceHandle normalBuffer);
+    void addBloomPass(RenderGraphBuilder& builder, const std::string& name,
+                      RenderResourceHandle hdrInput);
+    void addTonemapPass(RenderGraphBuilder& builder, const std::string& name,
+                        RenderResourceHandle hdrInput, RenderResourceHandle output);
+    void addFXAAPass(RenderGraphBuilder& builder, const std::string& name,
+                     RenderResourceHandle input, RenderResourceHandle output);
+    
+    // Statistics
+    struct FrameStats {
+        float graphBuildTime;
+        float graphCompileTime;
+        float graphExecuteTime;
+        size_t passCount;
+        size_t resourceCount;
+        size_t memoryUsed;
+    };
+    FrameStats getFrameStats() const { return m_frameStats; }
+    
+    // Debug
+    void enableDebugLabels(bool enable) { m_debugLabels = enable; }
+    void setProfilingEnabled(bool enable) { m_profiling = enable; }
+    
+private:
+    std::unique_ptr<RenderGraphBuilder> m_currentBuilder;
+    int m_backbufferWidth{0};
+    int m_backbufferHeight{0};
+    FrameStats m_frameStats{};
+    bool m_debugLabels{false};
+    bool m_profiling{false};
+};
+
+/**
+ * @brief Resource barrier manager for render graph
+ */
+class ResourceBarrierManager {
+public:
+    enum class BarrierType {
+        Transition,     // Resource state transition
+        UAV,            // Unordered access view barrier
+        Aliasing        // Resource aliasing barrier
+    };
+    
+    struct Barrier {
+        BarrierType type;
+        RenderResourceHandle resource;
+        ResourceUsage beforeUsage;
+        ResourceUsage afterUsage;
+    };
+    
+    void addBarrier(const Barrier& barrier);
+    void flushBarriers();
+    void optimizeBarriers();
+    
+    const std::vector<Barrier>& getPendingBarriers() const { return m_pending; }
+    void clearPendingBarriers() { m_pending.clear(); }
+    
+private:
+    std::vector<Barrier> m_pending;
+};
+
+/**
+ * @brief Transient resource allocator for render graph
+ */
+class TransientResourceAllocator {
+public:
+    TransientResourceAllocator(size_t poolSize = 256 * 1024 * 1024);  // 256MB default
+    ~TransientResourceAllocator();
+    
+    // Allocation
+    void* allocate(const RenderResourceDesc& desc);
+    void free(void* resource);
+    void reset();  // Call at frame start
+    
+    // Memory info
+    size_t getUsedMemory() const { return m_usedMemory; }
+    size_t getPoolSize() const { return m_poolSize; }
+    size_t getPeakMemory() const { return m_peakMemory; }
+    
+    // Aliasing support
+    void* getAliasedResource(const RenderResourceDesc& desc, int frameLifetime);
+    bool canAlias(const RenderResourceDesc& a, const RenderResourceDesc& b) const;
+    
+private:
+    struct MemoryBlock {
+        void* memory;
+        size_t size;
+        size_t offset;
+        bool inUse;
+        int lastUsedFrame;
+    };
+    
+    std::vector<MemoryBlock> m_blocks;
+    size_t m_poolSize;
+    size_t m_usedMemory{0};
+    size_t m_peakMemory{0};
+    int m_currentFrame{0};
+};
+
 } // namespace Graphics
 } // namespace JJM
 
