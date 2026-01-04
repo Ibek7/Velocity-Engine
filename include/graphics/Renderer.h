@@ -66,6 +66,215 @@ struct RenderLayer {
         : name(n), order(o), visible(true), opacity(1.0f) {}
 };
 
+// =============================================================================
+// Level of Detail (LOD) System
+// =============================================================================
+
+/**
+ * @brief LOD level configuration
+ */
+struct LODLevel {
+    int level;                      // LOD level (0 = highest detail)
+    float screenSizeThreshold;      // Switch when object is smaller than this (0-1)
+    float distanceThreshold;        // Alternative: switch at this distance
+    float transitionRange;          // Range for smooth transitions
+    std::string meshPath;           // Path to LOD mesh
+    float triangleReduction;        // Percentage of original triangles
+    bool useImpostors;              // Use billboard impostors instead of mesh
+    
+    LODLevel()
+        : level(0)
+        , screenSizeThreshold(1.0f)
+        , distanceThreshold(0.0f)
+        , transitionRange(5.0f)
+        , triangleReduction(1.0f)
+        , useImpostors(false)
+    {}
+};
+
+/**
+ * @brief LOD selection method
+ */
+enum class LODSelectionMethod {
+    Distance,           // Based on distance from camera
+    ScreenSize,         // Based on projected screen size
+    Combined,           // Use both factors
+    Manual              // Manually set LOD level
+};
+
+/**
+ * @brief LOD transition mode
+ */
+enum class LODTransitionMode {
+    Instant,            // Immediate switch
+    CrossFade,          // Fade between LODs
+    Dither,             // Dithered transition
+    GeometryMorph       // Morph geometry between LODs
+};
+
+/**
+ * @brief LOD group configuration
+ */
+struct LODGroupConfig {
+    LODSelectionMethod selectionMethod;
+    LODTransitionMode transitionMode;
+    float lodBias;                  // Bias towards higher/lower LODs
+    float maxDistance;              // Force lowest LOD beyond this
+    bool animateCrossFade;          // Animate cross-fade transitions
+    float crossFadeDuration;        // Duration of cross-fade in seconds
+    bool useCameraVelocity;         // Adjust LOD based on camera speed
+    
+    LODGroupConfig()
+        : selectionMethod(LODSelectionMethod::Distance)
+        , transitionMode(LODTransitionMode::CrossFade)
+        , lodBias(1.0f)
+        , maxDistance(1000.0f)
+        , animateCrossFade(true)
+        , crossFadeDuration(0.2f)
+        , useCameraVelocity(false)
+    {}
+};
+
+/**
+ * @brief LOD group for managing mesh LODs
+ */
+class LODGroup {
+private:
+    std::vector<LODLevel> m_levels;
+    LODGroupConfig m_config;
+    int m_currentLOD;
+    int m_targetLOD;
+    float m_transitionProgress;
+    float m_lastScreenSize;
+    float m_lastDistance;
+    bool m_forcedLOD;
+    int m_forcedLODLevel;
+    
+public:
+    LODGroup();
+    ~LODGroup();
+    
+    // LOD level management
+    void addLOD(const LODLevel& level);
+    void removeLOD(int level);
+    void clearLODs();
+    LODLevel* getLOD(int level);
+    const LODLevel* getLOD(int level) const;
+    int getLODCount() const { return static_cast<int>(m_levels.size()); }
+    
+    // Configuration
+    void setConfig(const LODGroupConfig& config) { m_config = config; }
+    const LODGroupConfig& getConfig() const { return m_config; }
+    
+    // LOD calculation
+    int calculateLOD(float distance, float screenSize, float cameraVelocity = 0.0f) const;
+    void update(float deltaTime, float distance, float screenSize, float cameraVelocity = 0.0f);
+    
+    // Current state
+    int getCurrentLOD() const { return m_currentLOD; }
+    int getTargetLOD() const { return m_targetLOD; }
+    float getTransitionProgress() const { return m_transitionProgress; }
+    bool isTransitioning() const { return m_transitionProgress < 1.0f && m_currentLOD != m_targetLOD; }
+    
+    // Forced LOD
+    void forceLOD(int level);
+    void clearForcedLOD();
+    bool isForcedLOD() const { return m_forcedLOD; }
+    
+    // Utility
+    float getTriangleReduction(int level) const;
+    float estimateScreenSize(float distance, float boundingSphereRadius, float fov, float screenHeight) const;
+};
+
+/**
+ * @brief LOD manager for global LOD settings
+ */
+class LODManager {
+private:
+    static LODManager* instance;
+    
+    // Global settings
+    float m_globalLODBias;
+    float m_maxRenderDistance;
+    int m_maxLODLevel;
+    bool m_enabled;
+    
+    // Quality presets
+    struct QualityPreset {
+        std::string name;
+        float lodBias;
+        float maxDistance;
+        int maxLOD;
+    };
+    std::vector<QualityPreset> m_presets;
+    int m_currentPreset;
+    
+    // Statistics
+    struct LODStats {
+        int objectsAtLOD[8];        // Count per LOD level
+        int totalTransitions;
+        float averageLOD;
+        int culledObjects;
+    };
+    mutable LODStats m_stats;
+    
+    // Registered LOD groups
+    std::vector<LODGroup*> m_groups;
+    
+    LODManager();
+    
+public:
+    static LODManager* getInstance();
+    static void cleanup();
+    
+    // Global settings
+    void setGlobalLODBias(float bias) { m_globalLODBias = bias; }
+    float getGlobalLODBias() const { return m_globalLODBias; }
+    void setMaxRenderDistance(float distance) { m_maxRenderDistance = distance; }
+    void setMaxLODLevel(int level) { m_maxLODLevel = level; }
+    void setEnabled(bool enable) { m_enabled = enable; }
+    bool isEnabled() const { return m_enabled; }
+    
+    // Quality presets
+    void addPreset(const std::string& name, float bias, float maxDist, int maxLOD);
+    void setPreset(const std::string& name);
+    void setPreset(int index);
+    std::vector<std::string> getPresetNames() const;
+    
+    // LOD group management
+    void registerGroup(LODGroup* group);
+    void unregisterGroup(LODGroup* group);
+    void updateAllGroups(float deltaTime, const Math::Vector2D& cameraPos, float cameraVelocity = 0.0f);
+    
+    // Force LOD globally
+    void forceGlobalLOD(int level);
+    void clearGlobalForcedLOD();
+    
+    // Statistics
+    const LODStats& getStats() const { return m_stats; }
+    void resetStats();
+    void updateStats(int lodLevel, bool transitioned);
+};
+
+/**
+ * @brief Impostor generator for billboard LODs
+ */
+class ImpostorGenerator {
+public:
+    struct ImpostorConfig {
+        int atlasSize;              // Size of impostor atlas texture
+        int viewCount;              // Number of view angles to capture
+        bool includeNormals;        // Generate normal map
+        bool includeMask;           // Generate alpha mask
+        float padding;              // Padding between views
+    };
+    
+    static bool generateImpostor(const std::string& meshPath, const std::string& outputPath, 
+                                  const ImpostorConfig& config);
+    static bool generateOctahedralImpostor(const std::string& meshPath, const std::string& outputPath,
+                                            int resolution);
+};
+
 class Renderer {
 private:
     SDL_Window* window;
