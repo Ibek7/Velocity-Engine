@@ -312,6 +312,472 @@ private:
                                      float maxSpeed);
 };
 
+// =============================================================================
+// HIERARCHICAL PATHFINDING (HPA*)
+// =============================================================================
+
+/**
+ * @brief Cluster for hierarchical navigation
+ */
+struct NavMeshCluster {
+    int clusterId;
+    std::vector<int> nodeIds;                   // Nodes in this cluster
+    JJM::Math::Vector2D center;
+    float radius;
+    
+    // Inter-cluster connections
+    struct BorderNode {
+        int nodeId;
+        int edgeId;                             // Edge connecting to other cluster
+        int neighborClusterId;
+        float distanceToCenter;
+    };
+    std::vector<BorderNode> borderNodes;
+};
+
+/**
+ * @brief Pre-computed path between clusters
+ */
+struct ClusterPath {
+    int fromClusterId;
+    int toClusterId;
+    std::vector<int> borderNodeSequence;
+    float totalCost;
+    bool valid{true};
+};
+
+/**
+ * @brief Hierarchical navigation mesh for large worlds
+ */
+class HierarchicalNavMesh {
+public:
+    HierarchicalNavMesh(NavMesh& baseMesh);
+    ~HierarchicalNavMesh();
+    
+    // Build hierarchy
+    void buildHierarchy(int clusterSize = 10);
+    void rebuildHierarchy();
+    void clear();
+    
+    // Hierarchical pathfinding
+    NavMeshPath findPathHierarchical(const JJM::Math::Vector2D& start,
+                                      const JJM::Math::Vector2D& end);
+    
+    // Path refinement
+    NavMeshPath refineClusterPath(const std::vector<int>& clusterPath);
+    void smoothHierarchicalPath(NavMeshPath& path);
+    
+    // Dynamic updates
+    void invalidateCluster(int clusterId);
+    void invalidateNode(int nodeId);
+    void rebuildCluster(int clusterId);
+    
+    // Query
+    int findClusterContainingNode(int nodeId) const;
+    int findClusterContainingPoint(const JJM::Math::Vector2D& point) const;
+    size_t getClusterCount() const { return clusters.size(); }
+    const NavMeshCluster* getCluster(int clusterId) const;
+    
+    // Pre-computation
+    void precomputeClusterPaths();
+    const ClusterPath* getPrecomputedPath(int fromCluster, int toCluster) const;
+    
+    // Statistics
+    struct HierarchyStats {
+        size_t clusterCount;
+        size_t totalBorderNodes;
+        size_t precomputedPaths;
+        float averageClusterSize;
+        float hierarchyBuildTime;
+    };
+    HierarchyStats getStatistics() const;
+    
+private:
+    NavMesh& baseMesh;
+    std::vector<NavMeshCluster> clusters;
+    std::unordered_map<int, int> nodeToCluster;     // Node ID -> Cluster ID
+    std::map<std::pair<int, int>, ClusterPath> precomputedPaths;
+    
+    void clusterNodes(int clusterSize);
+    void findBorderNodes();
+    void buildClusterGraph();
+    std::vector<int> findClusterPath(int startCluster, int endCluster);
+};
+
+// =============================================================================
+// PATH CACHING AND POOLING
+// =============================================================================
+
+/**
+ * @brief Cache key for path lookup
+ */
+struct PathCacheKey {
+    int startNodeId;
+    int endNodeId;
+    
+    bool operator==(const PathCacheKey& other) const {
+        return startNodeId == other.startNodeId && endNodeId == other.endNodeId;
+    }
+};
+
+// Hash function for PathCacheKey
+struct PathCacheKeyHash {
+    size_t operator()(const PathCacheKey& key) const {
+        return std::hash<int>()(key.startNodeId) ^ (std::hash<int>()(key.endNodeId) << 16);
+    }
+};
+
+/**
+ * @brief Cached path entry
+ */
+struct CachedPath {
+    NavMeshPath path;
+    uint64_t timestamp;
+    uint32_t useCount;
+    bool valid{true};
+};
+
+/**
+ * @brief LRU path cache for frequently used routes
+ */
+class PathCache {
+public:
+    PathCache(size_t maxSize = 1000);
+    
+    // Cache operations
+    void addPath(const PathCacheKey& key, const NavMeshPath& path);
+    const NavMeshPath* getPath(const PathCacheKey& key);
+    void invalidatePath(const PathCacheKey& key);
+    void invalidatePathsContaining(int nodeId);
+    void clear();
+    
+    // Configuration
+    void setMaxSize(size_t size);
+    void setExpirationTime(float seconds) { expirationTime = seconds; }
+    
+    // Statistics
+    struct CacheStats {
+        size_t cacheSize;
+        size_t hits;
+        size_t misses;
+        float hitRate;
+        size_t evictions;
+    };
+    CacheStats getStatistics() const;
+    void resetStatistics();
+    
+private:
+    std::unordered_map<PathCacheKey, CachedPath, PathCacheKeyHash> cache;
+    std::list<PathCacheKey> lruList;    // Most recent at front
+    std::unordered_map<PathCacheKey, std::list<PathCacheKey>::iterator, PathCacheKeyHash> lruMap;
+    
+    size_t maxSize;
+    float expirationTime{60.0f};        // Seconds before path expires
+    
+    mutable CacheStats stats{};
+    
+    void evictOldest();
+    void moveToFront(const PathCacheKey& key);
+    bool isExpired(const CachedPath& cached) const;
+};
+
+// =============================================================================
+// THREADED PATHFINDING
+// =============================================================================
+
+/**
+ * @brief Path request for async processing
+ */
+struct PathRequest {
+    int requestId;
+    JJM::Math::Vector2D start;
+    JJM::Math::Vector2D end;
+    int priority;
+    std::function<void(const NavMeshPath&)> callback;
+    bool cancelled{false};
+    
+    // Request options
+    bool useHierarchical{true};
+    bool smoothPath{true};
+    float maxSearchTime{0.1f};          // Max time to spend on this request
+};
+
+/**
+ * @brief Threaded pathfinding system
+ */
+class ThreadedPathfinder {
+public:
+    ThreadedPathfinder(NavMesh& mesh, int threadCount = 2);
+    ~ThreadedPathfinder();
+    
+    // Request management
+    int requestPath(const JJM::Math::Vector2D& start,
+                    const JJM::Math::Vector2D& end,
+                    std::function<void(const NavMeshPath&)> callback,
+                    int priority = 0);
+    void cancelRequest(int requestId);
+    void cancelAllRequests();
+    
+    // Hierarchical support
+    void setHierarchicalMesh(HierarchicalNavMesh* hierarchical) { hierMesh = hierarchical; }
+    
+    // Path caching
+    void setPathCache(PathCache* cache) { pathCache = cache; }
+    
+    // Control
+    void start();
+    void stop();
+    void pause();
+    void resume();
+    bool isRunning() const { return running; }
+    
+    // Process completed paths on main thread
+    void processCompletedPaths();
+    
+    // Statistics
+    struct ThreadStats {
+        size_t pendingRequests;
+        size_t completedRequests;
+        size_t cancelledRequests;
+        float averagePathTime;
+        size_t cacheHits;
+        size_t cacheMisses;
+    };
+    ThreadStats getStatistics() const;
+    
+    // Configuration
+    void setMaxRequestsPerFrame(int max) { maxRequestsPerFrame = max; }
+    
+private:
+    NavMesh& navMesh;
+    HierarchicalNavMesh* hierMesh{nullptr};
+    PathCache* pathCache{nullptr};
+    
+    std::vector<std::thread> workers;
+    std::priority_queue<PathRequest, std::vector<PathRequest>,
+                       std::function<bool(const PathRequest&, const PathRequest&)>> requestQueue;
+    std::vector<std::pair<int, NavMeshPath>> completedPaths;
+    std::unordered_map<int, std::function<void(const NavMeshPath&)>> callbacks;
+    
+    std::mutex queueMutex;
+    std::mutex completedMutex;
+    std::condition_variable queueCondition;
+    
+    std::atomic<bool> running{false};
+    std::atomic<bool> paused{false};
+    int nextRequestId{0};
+    int maxRequestsPerFrame{10};
+    
+    mutable ThreadStats stats{};
+    
+    void workerThread();
+    void processRequest(PathRequest& request);
+};
+
+// =============================================================================
+// DYNAMIC OBSTACLES
+// =============================================================================
+
+/**
+ * @brief Dynamic obstacle shape
+ */
+enum class ObstacleShape {
+    Circle,
+    Rectangle,
+    Polygon,
+    Capsule
+};
+
+/**
+ * @brief Dynamic obstacle definition
+ */
+struct DynamicObstacle {
+    int obstacleId;
+    ObstacleShape shape;
+    JJM::Math::Vector2D position;
+    float rotation{0.0f};
+    
+    // Shape parameters
+    union {
+        struct { float radius; } circle;
+        struct { float width; float height; } rectangle;
+        struct { float radius; float length; } capsule;
+    };
+    std::vector<JJM::Math::Vector2D> polygonVertices;   // For polygon shape
+    
+    // Properties
+    float costMultiplier{-1.0f};    // -1 = impassable, >1 = higher cost
+    bool enabled{true};
+    int priority{0};                 // Higher priority obstacles override lower
+    
+    // Velocity for prediction
+    JJM::Math::Vector2D velocity;
+    float angularVelocity{0.0f};
+};
+
+/**
+ * @brief Dynamic obstacle manager with nav mesh integration
+ */
+class DynamicObstacleManager {
+public:
+    DynamicObstacleManager(NavMesh& mesh);
+    ~DynamicObstacleManager();
+    
+    // Obstacle management
+    int addObstacle(const DynamicObstacle& obstacle);
+    void removeObstacle(int obstacleId);
+    void updateObstacle(int obstacleId, const JJM::Math::Vector2D& position, float rotation = 0.0f);
+    void updateObstacleVelocity(int obstacleId, const JJM::Math::Vector2D& velocity);
+    DynamicObstacle* getObstacle(int obstacleId);
+    
+    // Batch updates
+    void updateAllObstacles(float deltaTime);
+    
+    // Query
+    bool isPointBlocked(const JJM::Math::Vector2D& point) const;
+    bool isLineBlocked(const JJM::Math::Vector2D& start, const JJM::Math::Vector2D& end) const;
+    std::vector<int> getObstaclesInArea(const JJM::Math::Vector2D& center, float radius) const;
+    std::vector<int> getObstaclesOnPath(const NavMeshPath& path) const;
+    
+    // Nav mesh integration
+    void updateAffectedNodes();
+    void setNodeCostCallback(std::function<void(int nodeId, float cost)> callback);
+    
+    // Prediction
+    JJM::Math::Vector2D predictObstaclePosition(int obstacleId, float time) const;
+    bool willPathBeBlocked(const NavMeshPath& path, float travelTime) const;
+    
+    // Spatial partitioning for efficient queries
+    void rebuildSpatialIndex();
+    void setCellSize(float size) { spatialCellSize = size; }
+    
+    // Statistics
+    struct ObstacleStats {
+        size_t obstacleCount;
+        size_t affectedNodes;
+        float updateTime;
+    };
+    ObstacleStats getStatistics() const;
+    
+private:
+    NavMesh& navMesh;
+    std::unordered_map<int, DynamicObstacle> obstacles;
+    int nextObstacleId{0};
+    
+    // Spatial hash for fast queries
+    float spatialCellSize{10.0f};
+    std::unordered_map<int64_t, std::vector<int>> spatialHash;
+    
+    std::function<void(int, float)> nodeCostCallback;
+    
+    bool pointInObstacle(const JJM::Math::Vector2D& point, const DynamicObstacle& obstacle) const;
+    bool lineIntersectsObstacle(const JJM::Math::Vector2D& start, const JJM::Math::Vector2D& end,
+                                const DynamicObstacle& obstacle) const;
+    int64_t getSpatialKey(const JJM::Math::Vector2D& point) const;
+    void updateSpatialHash(int obstacleId);
+};
+
+// =============================================================================
+// PATH SMOOTHING AND OPTIMIZATION
+// =============================================================================
+
+/**
+ * @brief Path optimizer for smoother navigation
+ */
+class PathOptimizer {
+public:
+    PathOptimizer(const NavMesh& mesh);
+    
+    // Smoothing algorithms
+    NavMeshPath smoothFunnel(const NavMeshPath& path);          // String pulling
+    NavMeshPath smoothCatmullRom(const NavMeshPath& path, int segments = 3);
+    NavMeshPath smoothBezier(const NavMeshPath& path, int segments = 3);
+    
+    // Path simplification
+    NavMeshPath simplifyRDP(const NavMeshPath& path, float epsilon = 0.1f);  // Ramer-Douglas-Peucker
+    NavMeshPath removeRedundantPoints(const NavMeshPath& path, float angleThreshold = 0.1f);
+    
+    // Path shortcutting
+    NavMeshPath shortcutPath(const NavMeshPath& path);
+    NavMeshPath shortcutWithRaycasts(const NavMeshPath& path);
+    
+    // Configuration
+    void setMaxShortcutDistance(float distance) { maxShortcutDist = distance; }
+    void setRaycastStepSize(float step) { raycastStep = step; }
+    
+private:
+    const NavMesh& navMesh;
+    float maxShortcutDist{50.0f};
+    float raycastStep{0.5f};
+    
+    bool canShortcut(const JJM::Math::Vector2D& from, const JJM::Math::Vector2D& to) const;
+};
+
+/**
+ * @brief Jump Point Search optimization for grid-based regions
+ */
+class JumpPointSearch {
+public:
+    JumpPointSearch();
+    
+    // Initialize with walkable grid
+    void initialize(int width, int height, const std::vector<bool>& walkable);
+    
+    // Find path using JPS
+    std::vector<JJM::Math::Vector2D> findPath(int startX, int startY, int endX, int endY);
+    
+    // Configuration
+    void setDiagonalMovement(bool allow) { allowDiagonal = allow; }
+    void setCornerCutting(bool allow) { allowCornerCut = allow; }
+    
+    // Statistics
+    struct JPSStats {
+        int nodesExpanded;
+        int jumpPointsFound;
+        float searchTime;
+    };
+    JPSStats getLastSearchStats() const { return lastStats; }
+    
+private:
+    int gridWidth, gridHeight;
+    std::vector<bool> walkableGrid;
+    bool allowDiagonal{true};
+    bool allowCornerCut{false};
+    JPSStats lastStats{};
+    
+    // Jump point detection
+    bool isJumpPoint(int x, int y, int dx, int dy) const;
+    std::pair<int, int> jump(int x, int y, int dx, int dy, int endX, int endY) const;
+    std::vector<std::pair<int, int>> findSuccessors(int x, int y, int px, int py, int endX, int endY) const;
+    std::vector<std::pair<int, int>> pruneNeighbors(int x, int y, int px, int py) const;
+    
+    bool isWalkable(int x, int y) const;
+    bool isBlocked(int x, int y) const;
+};
+
+/**
+ * @brief Theta* algorithm for any-angle pathfinding
+ */
+class ThetaStarPathfinder {
+public:
+    ThetaStarPathfinder(const NavMesh& mesh);
+    
+    NavMeshPath findPath(const JJM::Math::Vector2D& start, const JJM::Math::Vector2D& end);
+    
+    // Line of sight checking
+    void setLineOfSightChecker(std::function<bool(const JJM::Math::Vector2D&, const JJM::Math::Vector2D&)> checker);
+    
+    // Configuration
+    void setMaxIterations(int iterations) { maxIterations = iterations; }
+    
+private:
+    const NavMesh& navMesh;
+    std::function<bool(const JJM::Math::Vector2D&, const JJM::Math::Vector2D&)> lineOfSight;
+    int maxIterations{10000};
+    
+    bool defaultLineOfSight(const JJM::Math::Vector2D& from, const JJM::Math::Vector2D& to) const;
+};
+
 } // namespace AI
 } // namespace JJM
 
