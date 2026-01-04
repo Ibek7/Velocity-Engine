@@ -119,6 +119,185 @@ private:
     static uint32_t readUint32(const std::vector<uint8_t>& buffer, size_t& offset);
 };
 
+/**
+ * @brief Compression algorithm types
+ */
+enum class CompressionType {
+    None,
+    LZ4,        // Fast compression, moderate ratio
+    ZSTD,       // Good balance of speed and ratio
+    Deflate,    // Standard zlib compression
+    LZO         // Ultra-fast compression
+};
+
+/**
+ * @brief Packet compression statistics
+ */
+struct CompressionStats {
+    size_t totalBytesIn;
+    size_t totalBytesOut;
+    size_t packetsCompressed;
+    size_t packetsDecompressed;
+    float avgCompressionRatio;
+    float avgCompressionTimeMs;
+    float avgDecompressionTimeMs;
+    
+    CompressionStats()
+        : totalBytesIn(0)
+        , totalBytesOut(0)
+        , packetsCompressed(0)
+        , packetsDecompressed(0)
+        , avgCompressionRatio(1.0f)
+        , avgCompressionTimeMs(0.0f)
+        , avgDecompressionTimeMs(0.0f)
+    {}
+    
+    void reset() {
+        totalBytesIn = 0;
+        totalBytesOut = 0;
+        packetsCompressed = 0;
+        packetsDecompressed = 0;
+        avgCompressionRatio = 1.0f;
+        avgCompressionTimeMs = 0.0f;
+        avgDecompressionTimeMs = 0.0f;
+    }
+};
+
+/**
+ * @brief Packet compression configuration
+ */
+struct CompressionConfig {
+    CompressionType type;
+    int compressionLevel;       // 1-9 for most algorithms
+    size_t minSizeToCompress;   // Don't compress packets smaller than this
+    bool adaptiveCompression;   // Adjust based on network conditions
+    
+    CompressionConfig()
+        : type(CompressionType::LZ4)
+        , compressionLevel(3)
+        , minSizeToCompress(64)
+        , adaptiveCompression(true)
+    {}
+};
+
+/**
+ * @brief Packet compressor for network data
+ */
+class PacketCompressor {
+public:
+    PacketCompressor();
+    ~PacketCompressor();
+    
+    // Configuration
+    void setConfig(const CompressionConfig& config);
+    const CompressionConfig& getConfig() const { return config; }
+    void setCompressionType(CompressionType type);
+    void setCompressionLevel(int level);
+    void setMinSizeToCompress(size_t minSize);
+    
+    // Compression operations
+    std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompress(const std::vector<uint8_t>& compressedData);
+    
+    // Packet-level operations
+    Packet compressPacket(const Packet& packet);
+    Packet decompressPacket(const Packet& packet);
+    
+    // Batch operations
+    std::vector<Packet> compressPackets(const std::vector<Packet>& packets);
+    std::vector<Packet> decompressPackets(const std::vector<Packet>& packets);
+    
+    // Statistics
+    const CompressionStats& getStats() const { return stats; }
+    void resetStats() { stats.reset(); }
+    float getCompressionRatio() const;
+    
+    // Utility
+    static bool isCompressed(const std::vector<uint8_t>& data);
+    static size_t estimateCompressedSize(size_t originalSize, CompressionType type);
+    
+private:
+    CompressionConfig config;
+    CompressionStats stats;
+    
+    std::vector<uint8_t> compressLZ4(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompressLZ4(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> compressZSTD(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompressZSTD(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> compressDeflate(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompressDeflate(const std::vector<uint8_t>& data);
+    
+    void updateStats(size_t originalSize, size_t compressedSize, float timeMs, bool isCompression);
+};
+
+/**
+ * @brief Network bandwidth limiter
+ */
+class BandwidthLimiter {
+public:
+    BandwidthLimiter();
+    ~BandwidthLimiter();
+    
+    // Configuration
+    void setMaxBytesPerSecond(size_t maxBytes);
+    void setMaxPacketsPerSecond(size_t maxPackets);
+    void setBurstAllowance(float burstMultiplier);
+    
+    // Rate limiting
+    bool canSend(size_t packetSize);
+    void recordSent(size_t packetSize);
+    void update(float deltaTime);
+    
+    // Statistics
+    size_t getCurrentBytesPerSecond() const { return currentBytesPerSecond; }
+    size_t getCurrentPacketsPerSecond() const { return currentPacketsPerSecond; }
+    float getUtilization() const;
+    
+private:
+    size_t maxBytesPerSecond;
+    size_t maxPacketsPerSecond;
+    float burstMultiplier;
+    
+    size_t currentBytesPerSecond;
+    size_t currentPacketsPerSecond;
+    size_t bytesSentThisSecond;
+    size_t packetsSentThisSecond;
+    float timeAccumulator;
+};
+
+/**
+ * @brief Network quality of service manager
+ */
+class NetworkQoS {
+public:
+    enum class Priority {
+        Low,
+        Normal,
+        High,
+        Critical
+    };
+    
+    NetworkQoS();
+    ~NetworkQoS();
+    
+    // Priority queuing
+    void queuePacket(const Packet& packet, Priority priority);
+    Packet dequeuePacket();
+    bool hasPackets() const;
+    
+    // Packet type priorities
+    void setPacketTypePriority(PacketType type, Priority priority);
+    Priority getPacketTypePriority(PacketType type) const;
+    
+    // Statistics
+    size_t getQueuedPacketCount() const;
+    size_t getQueuedPacketCount(Priority priority) const;
+
+private:
+    std::map<Priority, std::queue<Packet>> priorityQueues;
+    std::map<PacketType, Priority> packetPriorities;
+};
+
 } // namespace Network
 } // namespace JJM
 
