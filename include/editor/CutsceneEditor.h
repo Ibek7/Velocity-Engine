@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <functional>
 #include <variant>
+#include <optional>
+#include <set>
 
 // Cutscene editor and playback system
 namespace Engine {
@@ -48,6 +50,162 @@ enum class EasingType {
     Back
 };
 
+// =============================================================================
+// Timeline Track Types
+// =============================================================================
+
+/**
+ * @brief Types of specialized timeline tracks
+ */
+enum class TrackType {
+    Generic,            // Default track for any action
+    Camera,             // Camera movement, rotation, FOV
+    Animation,          // Skeletal/sprite animations
+    Audio,              // Sound effects and music
+    Dialogue,           // Character dialogue and subtitles
+    Event,              // Game events and triggers
+    Property,           // Object property animation
+    Particle,           // Particle system control
+    Light,              // Light intensity, color changes
+    PostProcess,        // Post-processing effects
+    Script,             // Custom script execution
+    Group               // Container for other tracks
+};
+
+/**
+ * @brief Track blending modes
+ */
+enum class TrackBlendMode {
+    Override,           // Replace existing values
+    Additive,           // Add to existing values
+    Multiply,           // Multiply with existing values
+    Average             // Average with other tracks
+};
+
+/**
+ * @brief Keyframe interpolation types
+ */
+enum class KeyframeInterpolation {
+    Constant,           // Step/hold value
+    Linear,             // Linear interpolation
+    Bezier,             // Bezier curve
+    Hermite,            // Hermite spline
+    CatmullRom          // Catmull-Rom spline
+};
+
+/**
+ * @brief Keyframe data structure
+ */
+struct Keyframe {
+    float time;
+    std::vector<float> values;      // Can hold 1-4 float values (scalar, vec2, vec3, vec4)
+    KeyframeInterpolation interpolation;
+    
+    // Bezier tangents (for Bezier interpolation)
+    std::vector<float> inTangent;
+    std::vector<float> outTangent;
+    float inWeight;
+    float outWeight;
+    
+    // Metadata
+    std::string label;
+    bool selected;
+    
+    Keyframe()
+        : time(0.0f)
+        , interpolation(KeyframeInterpolation::Linear)
+        , inWeight(1.0f)
+        , outWeight(1.0f)
+        , selected(false)
+    {}
+    
+    Keyframe(float t, const std::vector<float>& v)
+        : time(t)
+        , values(v)
+        , interpolation(KeyframeInterpolation::Linear)
+        , inWeight(1.0f)
+        , outWeight(1.0f)
+        , selected(false)
+    {}
+};
+
+/**
+ * @brief Animation curve for property animation
+ */
+class AnimationCurve {
+private:
+    std::vector<Keyframe> m_keyframes;
+    bool m_preInfinity;     // Loop before first keyframe
+    bool m_postInfinity;    // Loop after last keyframe
+    
+public:
+    AnimationCurve();
+    
+    // Keyframe management
+    int addKeyframe(const Keyframe& keyframe);
+    void removeKeyframe(int index);
+    void updateKeyframe(int index, const Keyframe& keyframe);
+    Keyframe* getKeyframe(int index);
+    const Keyframe* getKeyframe(int index) const;
+    int getKeyframeCount() const { return static_cast<int>(m_keyframes.size()); }
+    
+    // Find keyframes
+    int findKeyframeAtTime(float time, float tolerance = 0.001f) const;
+    std::pair<int, int> findSurroundingKeyframes(float time) const;
+    
+    // Evaluation
+    std::vector<float> evaluate(float time) const;
+    float evaluateScalar(float time) const;
+    
+    // Utility
+    float getStartTime() const;
+    float getEndTime() const;
+    float getDuration() const;
+    void sortKeyframes();
+    void clear();
+    
+    // Infinity modes
+    void setPreInfinity(bool loop) { m_preInfinity = loop; }
+    void setPostInfinity(bool loop) { m_postInfinity = loop; }
+    
+private:
+    std::vector<float> interpolate(const Keyframe& k1, const Keyframe& k2, float t) const;
+    std::vector<float> interpolateBezier(const Keyframe& k1, const Keyframe& k2, float t) const;
+    std::vector<float> interpolateHermite(const Keyframe& k1, const Keyframe& k2, float t) const;
+};
+
+/**
+ * @brief Property binding for animation
+ */
+struct PropertyBinding {
+    std::string objectPath;         // Path to target object
+    std::string propertyName;       // Name of property to animate
+    std::string componentType;      // Component type (Transform, Material, etc.)
+    int channelIndex;               // For multi-channel properties (x=0, y=1, z=2, w=3)
+    
+    PropertyBinding()
+        : channelIndex(-1)      // -1 means all channels
+    {}
+};
+
+/**
+ * @brief Track layer for non-destructive editing
+ */
+struct TrackLayer {
+    std::string name;
+    float weight;
+    bool enabled;
+    TrackBlendMode blendMode;
+    std::unique_ptr<AnimationCurve> curve;
+    
+    TrackLayer(const std::string& n = "Layer")
+        : name(n)
+        , weight(1.0f)
+        , enabled(true)
+        , blendMode(TrackBlendMode::Override)
+    {}
+};
+
 // Action parameter types
 using ActionParam = std::variant<float, int, bool, std::string, std::vector<float>>;
 
@@ -75,7 +233,9 @@ struct CutsceneAction {
     }
 };
 
-// Timeline track for organizing actions
+/**
+ * @brief Enhanced timeline track with curve support
+ */
 struct CutsceneTrack {
     std::string name;
     std::string targetEntity;
@@ -83,8 +243,98 @@ struct CutsceneTrack {
     bool locked;
     std::vector<std::shared_ptr<CutsceneAction>> actions;
     
+    // Track type and properties
+    TrackType trackType;
+    TrackBlendMode blendMode;
+    float weight;
+    
+    // Color for UI
+    std::string color;
+    
+    // Property animation
+    PropertyBinding propertyBinding;
+    std::unique_ptr<AnimationCurve> animationCurve;
+    std::vector<std::unique_ptr<TrackLayer>> layers;
+    
+    // Parent/child hierarchy
+    int parentTrackIndex;
+    std::vector<int> childTrackIndices;
+    bool collapsed;
+    
+    // Track-level effects
+    float timeOffset;
+    float timeScale;
+    bool reversed;
+    
     CutsceneTrack(const std::string& n = "Track")
-        : name(n), muted(false), locked(false) {}
+        : name(n)
+        , muted(false)
+        , locked(false)
+        , trackType(TrackType::Generic)
+        , blendMode(TrackBlendMode::Override)
+        , weight(1.0f)
+        , color("#4A90D9")
+        , parentTrackIndex(-1)
+        , collapsed(false)
+        , timeOffset(0.0f)
+        , timeScale(1.0f)
+        , reversed(false)
+    {}
+    
+    // Layer management
+    TrackLayer* addLayer(const std::string& layerName);
+    void removeLayer(int index);
+    TrackLayer* getLayer(int index);
+    int getLayerCount() const { return static_cast<int>(layers.size()); }
+    
+    // Evaluate track at time
+    std::vector<float> evaluate(float time) const;
+    
+    // Transform time with offset/scale/reverse
+    float transformTime(float globalTime) const;
+};
+
+/**
+ * @brief Track group for organization
+ */
+struct TrackGroup {
+    std::string name;
+    std::vector<int> trackIndices;
+    std::string color;
+    bool collapsed;
+    bool solo;          // Only play tracks in this group
+    bool muted;
+    
+    TrackGroup(const std::string& n = "Group")
+        : name(n)
+        , color("#666666")
+        , collapsed(false)
+        , solo(false)
+        , muted(false)
+    {}
+};
+
+/**
+ * @brief Timeline ruler settings
+ */
+struct TimelineRulerSettings {
+    bool showFrameNumbers;
+    bool showTimecode;
+    float frameRate;
+    int majorTickInterval;
+    int minorTicksPerMajor;
+    
+    TimelineRulerSettings()
+        : showFrameNumbers(true)
+        , showTimecode(true)
+        , frameRate(30.0f)
+        , majorTickInterval(30)
+        , minorTicksPerMajor(5)
+    {}
+    
+    std::string formatTime(float seconds) const;
+    int timeToFrame(float seconds) const;
+    float frameToTime(int frame) const;
 };
 
 // Cutscene marker for navigation
