@@ -7,18 +7,48 @@
 #include <vector>
 #include <memory>
 #include <any>
+#include <queue>
+#include <mutex>
+#include <chrono>
+#include <optional>
 
 namespace JJM {
 namespace Events {
+
+/**
+ * @brief Event priority levels
+ */
+enum class EventPriority {
+    Low = 0,
+    Normal = 100,
+    High = 200,
+    Critical = 300,
+    Immediate = 400  // Bypass queue, process immediately
+};
+
+/**
+ * @brief Event propagation behavior
+ */
+enum class EventPropagation {
+    Continue,       // Continue to next handler
+    Stop,           // Stop propagation to remaining handlers
+    StopImmediate   // Stop immediately, don't call any more handlers
+};
 
 class Event {
 private:
     std::string type;
     std::unordered_map<std::string, std::any> data;
     bool handled;
+    EventPriority priority;
+    EventPropagation propagation;
+    std::chrono::steady_clock::time_point timestamp;
+    std::string source;
+    uint64_t eventId;
+    static std::atomic<uint64_t> nextEventId;
     
 public:
-    Event(const std::string& eventType);
+    Event(const std::string& eventType, EventPriority priority = EventPriority::Normal);
     
     template<typename T>
     void setData(const std::string& key, const T& value) {
@@ -47,22 +77,160 @@ public:
         return defaultValue;
     }
     
+    bool hasData(const std::string& key) const {
+        return data.find(key) != data.end();
+    }
+    
     const std::string& getType() const { return type; }
     void markHandled() { handled = true; }
     bool isHandled() const { return handled; }
+    
+    EventPriority getPriority() const { return priority; }
+    void setPriority(EventPriority p) { priority = p; }
+    
+    EventPropagation getPropagation() const { return propagation; }
+    void stopPropagation() { propagation = EventPropagation::Stop; }
+    void stopImmediatePropagation() { propagation = EventPropagation::StopImmediate; }
+    
+    void setSource(const std::string& src) { source = src; }
+    const std::string& getSource() const { return source; }
+    
+    uint64_t getId() const { return eventId; }
+    std::chrono::steady_clock::time_point getTimestamp() const { return timestamp; }
 };
 
 using EventHandler = std::function<void(const Event&)>;
+using EventFilter = std::function<bool(const Event&)>;
+
+/**
+ * @brief Queued event entry with scheduling
+ */
+struct QueuedEvent {
+    Event event;
+    std::chrono::steady_clock::time_point dispatchTime;
+    float delay;
+    bool repeating;
+    float repeatInterval;
+    int repeatCount;         // -1 for infinite
+    int currentRepeat;
+    
+    QueuedEvent(const Event& e, float delaySeconds = 0.0f)
+        : event(e)
+        , delay(delaySeconds)
+        , repeating(false)
+        , repeatInterval(0.0f)
+        , repeatCount(0)
+        , currentRepeat(0)
+    {
+        dispatchTime = std::chrono::steady_clock::now() + 
+                       std::chrono::milliseconds(static_cast<int>(delaySeconds * 1000));
+    }
+    
+    bool operator<(const QueuedEvent& other) const {
+        // Lower priority value = lower priority, but we want high priority first
+        if (event.getPriority() != other.event.getPriority()) {
+            return static_cast<int>(event.getPriority()) < static_cast<int>(other.event.getPriority());
+        }
+        // Earlier dispatch time = higher priority
+        return dispatchTime > other.dispatchTime;
+    }
+};
+
+/**
+ * @brief Event subscription with priority and filtering
+ */
+struct EventSubscription {
+    int id;
+    EventHandler handler;
+    EventPriority priority;
+    EventFilter filter;
+    bool once;              // Auto-remove after first call
+    bool enabled;
+    
+    EventSubscription()
+        : id(0)
+        , priority(EventPriority::Normal)
+        , once(false)
+        , enabled(true)
+    {}
+    
+    bool operator<(const EventSubscription& other) const {
+        return static_cast<int>(priority) < static_cast<int>(other.priority);
+    }
+};
+
+/**
+ * @brief Event channel for isolated event streams
+ */
+class EventChannel {
+private:
+    std::string name;
+    std::vector<EventSubscription> subscriptions;
+    int nextSubscriptionId;
+    bool enabled;
+    
+public:
+    EventChannel(const std::string& channelName);
+    
+    int subscribe(const EventHandler& handler, EventPriority priority = EventPriority::Normal);
+    int subscribeOnce(const EventHandler& handler, EventPriority priority = EventPriority::Normal);
+    int subscribeFiltered(const EventHandler& handler, const EventFilter& filter, 
+                          EventPriority priority = EventPriority::Normal);
+    void unsubscribe(int subscriptionId);
+    void unsubscribeAll();
+    
+    void dispatch(const Event& event);
+    
+    void enable() { enabled = true; }
+    void disable() { enabled = false; }
+    bool isEnabled() const { return enabled; }
+    
+    const std::string& getName() const { return name; }
+    size_t getSubscriptionCount() const { return subscriptions.size(); }
+};
+
+/**
+ * @brief Listener info for legacy API compatibility
+ */
+struct ListenerInfo {
+    int id;
+    EventHandler handler;
+    EventPriority priority;
+    EventFilter filter;
+    bool once;
+};
 
 class EventDispatcher {
 private:
-    struct ListenerInfo {
-        int id;
-        EventHandler handler;
-    };
-    
     std::unordered_map<std::string, std::vector<ListenerInfo>> listeners;
     int nextListenerId;
+    
+    // Event queue
+    std::priority_queue<QueuedEvent> eventQueue;
+    std::mutex queueMutex;
+    bool processingQueue;
+    size_t maxQueueSize;
+    
+    // Event channels
+    std::unordered_map<std::string, std::unique_ptr<EventChannel>> channels;
+    
+    // Event history (for debugging/replay)
+    std::vector<Event> eventHistory;
+    bool recordHistory;
+    size_t maxHistorySize;
+    
+    // Deferred events (for next frame)
+    std::vector<Event> deferredEvents;
+    std::mutex deferredMutex;
+    
+    // Statistics
+    struct EventStats {
+        uint64_t totalDispatched;
+        uint64_t totalQueued;
+        uint64_t totalFiltered;
+        std::unordered_map<std::string, uint64_t> eventCounts;
+    };
+    EventStats stats;
     
     static EventDispatcher* instance;
     EventDispatcher();
@@ -73,17 +241,102 @@ public:
     static EventDispatcher* getInstance();
     static void destroy();
     
+    // Legacy API (kept for compatibility)
     int addEventListener(const std::string& eventType, const EventHandler& handler);
     void removeEventListener(const std::string& eventType, int listenerId);
     void removeAllListeners(const std::string& eventType);
     void removeAllListeners();
     
+    // Enhanced subscription API
+    int subscribe(const std::string& eventType, const EventHandler& handler, 
+                  EventPriority priority = EventPriority::Normal);
+    int subscribeOnce(const std::string& eventType, const EventHandler& handler,
+                      EventPriority priority = EventPriority::Normal);
+    int subscribeFiltered(const std::string& eventType, const EventHandler& handler,
+                          const EventFilter& filter, EventPriority priority = EventPriority::Normal);
+    void unsubscribe(const std::string& eventType, int subscriptionId);
+    
+    // Immediate dispatch
     void dispatchEvent(const Event& event);
     void dispatchEvent(const std::string& eventType);
+    
+    // Queued dispatch
+    void queueEvent(const Event& event, float delay = 0.0f);
+    void queueRepeatingEvent(const Event& event, float interval, int count = -1);
+    void processQueue();
+    void clearQueue();
+    size_t getQueueSize() const;
+    void setMaxQueueSize(size_t size) { maxQueueSize = size; }
+    
+    // Deferred dispatch (next frame)
+    void deferEvent(const Event& event);
+    void processDeferred();
+    
+    // Event channels
+    EventChannel* createChannel(const std::string& name);
+    EventChannel* getChannel(const std::string& name);
+    void destroyChannel(const std::string& name);
+    
+    // Event history
+    void enableHistory(bool enable, size_t maxSize = 1000);
+    const std::vector<Event>& getHistory() const { return eventHistory; }
+    void clearHistory();
+    void replayHistory();
+    
+    // Statistics
+    const EventStats& getStats() const { return stats; }
+    void resetStats();
     
     // Delete copy constructor and assignment operator
     EventDispatcher(const EventDispatcher&) = delete;
     EventDispatcher& operator=(const EventDispatcher&) = delete;
+};
+
+/**
+ * @brief RAII event subscription scope guard
+ */
+class ScopedEventSubscription {
+private:
+    std::string eventType;
+    int subscriptionId;
+    
+public:
+    ScopedEventSubscription(const std::string& type, const EventHandler& handler,
+                            EventPriority priority = EventPriority::Normal);
+    ~ScopedEventSubscription();
+    
+    ScopedEventSubscription(const ScopedEventSubscription&) = delete;
+    ScopedEventSubscription& operator=(const ScopedEventSubscription&) = delete;
+    
+    ScopedEventSubscription(ScopedEventSubscription&& other) noexcept;
+    ScopedEventSubscription& operator=(ScopedEventSubscription&& other) noexcept;
+    
+    void release();
+};
+
+/**
+ * @brief Event builder for fluent event creation
+ */
+class EventBuilder {
+private:
+    Event event;
+    
+public:
+    EventBuilder(const std::string& type);
+    
+    EventBuilder& withPriority(EventPriority priority);
+    EventBuilder& withSource(const std::string& source);
+    
+    template<typename T>
+    EventBuilder& withData(const std::string& key, const T& value) {
+        event.setData(key, value);
+        return *this;
+    }
+    
+    Event build() const { return event; }
+    void dispatch();
+    void queue(float delay = 0.0f);
+    void defer();
 };
 
 // Common event types
@@ -98,6 +351,17 @@ namespace EventTypes {
     const std::string LEVEL_COMPLETE = "level_complete";
     const std::string BUTTON_CLICKED = "button_clicked";
     const std::string VALUE_CHANGED = "value_changed";
+    
+    // Additional system events
+    const std::string FRAME_START = "frame_start";
+    const std::string FRAME_END = "frame_end";
+    const std::string INPUT_RECEIVED = "input_received";
+    const std::string WINDOW_RESIZE = "window_resize";
+    const std::string WINDOW_FOCUS = "window_focus";
+    const std::string AUDIO_COMPLETE = "audio_complete";
+    const std::string ANIMATION_COMPLETE = "animation_complete";
+    const std::string NETWORK_CONNECTED = "network_connected";
+    const std::string NETWORK_DISCONNECTED = "network_disconnected";
 }
 
 } // namespace Events
