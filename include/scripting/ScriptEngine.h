@@ -6,6 +6,10 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <queue>
+#include <chrono>
+#include <optional>
+#include <variant>
 
 namespace JJM {
 namespace Scripting {
@@ -15,6 +19,10 @@ enum class ScriptType {
     JAVASCRIPT,
     PYTHON
 };
+
+// =============================================================================
+// Script Value
+// =============================================================================
 
 class ScriptValue {
 public:
@@ -75,6 +83,277 @@ public:
 private:
     std::string name;
     CppFunction function;
+};
+
+// =============================================================================
+// Coroutine System
+// =============================================================================
+
+/**
+ * @brief Coroutine execution state
+ */
+enum class CoroutineState {
+    Created,        // Just created, not started
+    Running,        // Currently executing
+    Suspended,      // Yielded, waiting to resume
+    Waiting,        // Waiting for condition/timer
+    Completed,      // Finished successfully
+    Error,          // Finished with error
+    Cancelled       // Manually cancelled
+};
+
+/**
+ * @brief Yield instruction types
+ */
+enum class YieldType {
+    None,           // No yield, continue execution
+    Frame,          // Wait until next frame
+    Seconds,        // Wait for duration
+    Frames,         // Wait for N frames
+    Condition,      // Wait until condition is true
+    All,            // Wait for all coroutines to complete
+    Any,            // Wait for any coroutine to complete
+    Custom          // Custom yield handler
+};
+
+/**
+ * @brief Yield instruction returned by coroutines
+ */
+struct YieldInstruction {
+    YieldType type;
+    float waitSeconds;
+    int waitFrames;
+    std::function<bool()> condition;
+    std::vector<uint64_t> waitingForCoroutines;
+    std::string customYieldName;
+    
+    YieldInstruction()
+        : type(YieldType::None)
+        , waitSeconds(0.0f)
+        , waitFrames(0)
+    {}
+    
+    static YieldInstruction WaitForNextFrame() {
+        YieldInstruction yi;
+        yi.type = YieldType::Frame;
+        return yi;
+    }
+    
+    static YieldInstruction WaitForSeconds(float seconds) {
+        YieldInstruction yi;
+        yi.type = YieldType::Seconds;
+        yi.waitSeconds = seconds;
+        return yi;
+    }
+    
+    static YieldInstruction WaitForFrames(int frames) {
+        YieldInstruction yi;
+        yi.type = YieldType::Frames;
+        yi.waitFrames = frames;
+        return yi;
+    }
+    
+    static YieldInstruction WaitUntil(std::function<bool()> cond) {
+        YieldInstruction yi;
+        yi.type = YieldType::Condition;
+        yi.condition = std::move(cond);
+        return yi;
+    }
+    
+    static YieldInstruction WaitWhile(std::function<bool()> cond) {
+        YieldInstruction yi;
+        yi.type = YieldType::Condition;
+        yi.condition = [cond]() { return !cond(); };
+        return yi;
+    }
+};
+
+/**
+ * @brief Coroutine context containing state and local variables
+ */
+struct CoroutineContext {
+    uint64_t id;
+    std::string name;
+    CoroutineState state;
+    YieldInstruction currentYield;
+    
+    // Timing
+    std::chrono::steady_clock::time_point startTime;
+    std::chrono::steady_clock::time_point yieldTime;
+    std::chrono::steady_clock::time_point resumeTime;
+    float elapsedTime;
+    int frameCount;
+    int framesWaited;
+    
+    // Results
+    ScriptValue returnValue;
+    std::string errorMessage;
+    
+    // Parent/child relationships
+    std::optional<uint64_t> parentCoroutine;
+    std::vector<uint64_t> childCoroutines;
+    
+    // Local storage
+    std::map<std::string, ScriptValue> locals;
+    
+    CoroutineContext()
+        : id(0)
+        , state(CoroutineState::Created)
+        , elapsedTime(0.0f)
+        , frameCount(0)
+        , framesWaited(0)
+    {}
+};
+
+/**
+ * @brief Function type for coroutine body
+ */
+using CoroutineFunction = std::function<YieldInstruction(CoroutineContext&)>;
+
+/**
+ * @brief Async operation result
+ */
+template<typename T>
+class AsyncResult {
+private:
+    std::optional<T> value;
+    std::optional<std::string> error;
+    bool completed;
+    
+public:
+    AsyncResult() : completed(false) {}
+    
+    void setResult(const T& val) {
+        value = val;
+        completed = true;
+    }
+    
+    void setError(const std::string& err) {
+        error = err;
+        completed = true;
+    }
+    
+    bool isCompleted() const { return completed; }
+    bool hasError() const { return error.has_value(); }
+    const std::string& getError() const { return error.value(); }
+    const T& getValue() const { return value.value(); }
+};
+
+/**
+ * @brief Coroutine scheduler and manager
+ */
+class CoroutineScheduler {
+private:
+    static CoroutineScheduler* instance;
+    
+    std::map<uint64_t, std::unique_ptr<CoroutineContext>> coroutines;
+    std::map<uint64_t, CoroutineFunction> coroutineFunctions;
+    std::vector<uint64_t> activeCoroutines;
+    std::queue<uint64_t> pendingStart;
+    
+    uint64_t nextCoroutineId;
+    int currentFrame;
+    float deltaTime;
+    
+    // Custom yield handlers
+    std::map<std::string, std::function<bool(CoroutineContext&)>> customYieldHandlers;
+    
+    // Statistics
+    struct CoroutineStats {
+        uint64_t totalCreated;
+        uint64_t totalCompleted;
+        uint64_t totalCancelled;
+        uint64_t totalErrors;
+        uint64_t currentActive;
+        float averageLifetime;
+    };
+    CoroutineStats stats;
+    
+    CoroutineScheduler();
+    
+public:
+    ~CoroutineScheduler();
+    
+    static CoroutineScheduler* getInstance();
+    static void cleanup();
+    
+    // Coroutine creation
+    uint64_t startCoroutine(const std::string& name, CoroutineFunction func);
+    uint64_t startCoroutine(CoroutineFunction func);
+    uint64_t startChildCoroutine(uint64_t parentId, const std::string& name, CoroutineFunction func);
+    
+    // Coroutine control
+    void stopCoroutine(uint64_t id);
+    void stopAllCoroutines();
+    void pauseCoroutine(uint64_t id);
+    void resumeCoroutine(uint64_t id);
+    
+    // Query
+    bool isRunning(uint64_t id) const;
+    bool isCompleted(uint64_t id) const;
+    CoroutineState getState(uint64_t id) const;
+    CoroutineContext* getContext(uint64_t id);
+    const CoroutineContext* getContext(uint64_t id) const;
+    
+    // Update (call once per frame)
+    void update(float dt);
+    
+    // Custom yield handlers
+    void registerYieldHandler(const std::string& name, std::function<bool(CoroutineContext&)> handler);
+    void unregisterYieldHandler(const std::string& name);
+    
+    // Statistics
+    const CoroutineStats& getStats() const { return stats; }
+    void resetStats();
+    size_t getActiveCount() const { return activeCoroutines.size(); }
+    std::vector<std::string> getActiveCoroutineNames() const;
+    
+private:
+    void processCoroutine(uint64_t id);
+    bool checkYieldCondition(CoroutineContext& ctx);
+    void completeCoroutine(uint64_t id, bool success);
+    void removeCoroutine(uint64_t id);
+};
+
+/**
+ * @brief Async operation wrapper for script integration
+ */
+class AsyncOperation {
+private:
+    uint64_t coroutineId;
+    std::function<void()> onComplete;
+    std::function<void(const std::string&)> onError;
+    
+public:
+    AsyncOperation(uint64_t coroId);
+    
+    AsyncOperation& then(std::function<void()> callback);
+    AsyncOperation& catchError(std::function<void(const std::string&)> callback);
+    
+    void cancel();
+    bool isComplete() const;
+    bool hasError() const;
+};
+
+/**
+ * @brief Sequence builder for chaining coroutines
+ */
+class CoroutineSequence {
+private:
+    std::vector<CoroutineFunction> steps;
+    std::string name;
+    bool parallel;
+    
+public:
+    CoroutineSequence(const std::string& sequenceName = "");
+    
+    CoroutineSequence& then(CoroutineFunction step);
+    CoroutineSequence& wait(float seconds);
+    CoroutineSequence& waitFrames(int frames);
+    CoroutineSequence& waitUntil(std::function<bool()> condition);
+    
+    uint64_t start();
+    uint64_t startParallel();
 };
 
 class ScriptEngine {
@@ -164,6 +443,28 @@ public:
     engine->registerFunction(name, [obj](const std::vector<ScriptValue>& args) -> ScriptValue { \
         return obj->method(args); \
     })
+
+// Coroutine macros
+#define START_COROUTINE(name, func) \
+    CoroutineScheduler::getInstance()->startCoroutine(name, func)
+
+#define STOP_COROUTINE(id) \
+    CoroutineScheduler::getInstance()->stopCoroutine(id)
+
+#define YIELD_FRAME() \
+    return YieldInstruction::WaitForNextFrame()
+
+#define YIELD_SECONDS(seconds) \
+    return YieldInstruction::WaitForSeconds(seconds)
+
+#define YIELD_FRAMES(frames) \
+    return YieldInstruction::WaitForFrames(frames)
+
+#define YIELD_UNTIL(condition) \
+    return YieldInstruction::WaitUntil(condition)
+
+#define YIELD_WHILE(condition) \
+    return YieldInstruction::WaitWhile(condition)
 
 } // namespace Scripting
 } // namespace JJM
