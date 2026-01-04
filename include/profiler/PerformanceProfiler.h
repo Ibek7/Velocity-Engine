@@ -682,6 +682,428 @@ public:
 };
 
 // =============================================================================
+// TIMELINE VISUALIZATION
+// =============================================================================
+
+/**
+ * @brief Timeline event for visualization
+ */
+struct TimelineEvent {
+    std::string name;
+    std::string category;           // "CPU", "GPU", "System", "User"
+    uint64_t startTime;             // Microseconds from frame start
+    uint64_t endTime;
+    int threadId;
+    int depth;                      // Nesting depth for overlapping events
+    uint32_t color;                 // RGBA color for display
+    
+    // Additional metadata
+    std::string details;
+    std::unordered_map<std::string, std::string> metadata;
+    
+    uint64_t getDuration() const { return endTime - startTime; }
+};
+
+/**
+ * @brief Timeline track containing events
+ */
+struct TimelineTrack {
+    std::string name;
+    int trackId;
+    std::string category;
+    std::vector<TimelineEvent> events;
+    bool visible{true};
+    bool expanded{true};
+    uint32_t defaultColor{0xFFFFFFFF};
+};
+
+/**
+ * @brief Timeline frame capture
+ */
+struct TimelineFrame {
+    int frameNumber;
+    uint64_t frameStartTime;
+    uint64_t frameEndTime;
+    std::vector<TimelineTrack> tracks;
+    
+    // Frame markers
+    struct Marker {
+        std::string name;
+        uint64_t timestamp;
+        uint32_t color;
+    };
+    std::vector<Marker> markers;
+    
+    uint64_t getDuration() const { return frameEndTime - frameStartTime; }
+};
+
+/**
+ * @brief Timeline profiler for frame-based visualization
+ */
+class TimelineProfiler {
+public:
+    TimelineProfiler();
+    ~TimelineProfiler();
+    
+    // Frame management
+    void beginFrame();
+    void endFrame();
+    
+    // Track management
+    int createTrack(const std::string& name, const std::string& category = "Default");
+    void removeTrack(int trackId);
+    TimelineTrack* getTrack(int trackId);
+    TimelineTrack* getTrack(const std::string& name);
+    
+    // Event recording
+    void beginEvent(int trackId, const std::string& name, uint32_t color = 0xFFFFFFFF);
+    void beginEvent(const std::string& trackName, const std::string& name, uint32_t color = 0xFFFFFFFF);
+    void endEvent(int trackId);
+    void endEvent(const std::string& trackName);
+    void addInstantEvent(int trackId, const std::string& name, uint32_t color = 0xFFFFFFFF);
+    
+    // Markers
+    void addMarker(const std::string& name, uint32_t color = 0xFF0000FF);
+    
+    // Metadata
+    void setEventMetadata(const std::string& key, const std::string& value);
+    
+    // Query
+    const TimelineFrame& getCurrentFrame() const;
+    const TimelineFrame& getFrame(int frameNumber) const;
+    std::vector<TimelineFrame> getFrameRange(int startFrame, int endFrame) const;
+    int getFrameCount() const { return static_cast<int>(capturedFrames.size()); }
+    
+    // Configuration
+    void setMaxCapturedFrames(int count) { maxCapturedFrames = count; }
+    void setEnabled(bool enable) { enabled = enable; }
+    bool isEnabled() const { return enabled; }
+    
+    // Export
+    void exportToChrome(const std::string& filepath) const;
+    void exportToJSON(const std::string& filepath) const;
+    std::string toJSON() const;
+    
+private:
+    std::vector<TimelineFrame> capturedFrames;
+    TimelineFrame currentFrame;
+    std::unordered_map<std::string, int> trackNameToId;
+    int nextTrackId{0};
+    int maxCapturedFrames{120};
+    bool enabled{true};
+    
+    // Active events stack per track
+    std::unordered_map<int, std::vector<size_t>> activeEventStack;  // Track -> event indices
+    
+    uint64_t getCurrentTimestamp() const;
+};
+
+/**
+ * @brief Scoped timeline event
+ */
+class ScopedTimelineEvent {
+public:
+    ScopedTimelineEvent(TimelineProfiler& profiler, int trackId, const std::string& name, uint32_t color = 0xFFFFFFFF);
+    ScopedTimelineEvent(TimelineProfiler& profiler, const std::string& trackName, const std::string& name, uint32_t color = 0xFFFFFFFF);
+    ~ScopedTimelineEvent();
+    
+private:
+    TimelineProfiler& profiler;
+    int trackId;
+};
+
+// =============================================================================
+// FLAME GRAPH VISUALIZATION
+// =============================================================================
+
+/**
+ * @brief Flame graph node
+ */
+struct FlameNode {
+    std::string name;
+    uint64_t selfTime{0};           // Time spent in this function only
+    uint64_t totalTime{0};          // Including children
+    int sampleCount{0};
+    float selfPercent{0.0f};
+    float totalPercent{0.0f};
+    
+    std::vector<FlameNode> children;
+    FlameNode* parent{nullptr};
+    
+    // For rendering
+    float x{0.0f}, y{0.0f};
+    float width{0.0f}, height{20.0f};
+    uint32_t color{0xFFFF8800};
+};
+
+/**
+ * @brief Flame graph generator
+ */
+class FlameGraphGenerator {
+public:
+    FlameGraphGenerator();
+    
+    // Build from profiler data
+    FlameNode buildFromCallStack(const CallStackEntry& root);
+    FlameNode buildFromTimeline(const TimelineFrame& frame);
+    FlameNode buildFromSamples(const std::vector<std::vector<std::string>>& stackSamples);
+    
+    // Merge multiple frames
+    FlameNode mergeFrames(const std::vector<TimelineFrame>& frames);
+    
+    // Export formats
+    std::string toSVG(const FlameNode& root, int width = 1200, int height = 600);
+    std::string toHTML(const FlameNode& root, int width = 1200, int height = 600);
+    std::string toFoldedStacks(const FlameNode& root);  // For external tools
+    void exportSVG(const FlameNode& root, const std::string& filepath, int width = 1200, int height = 600);
+    
+    // Configuration
+    void setMinPercent(float percent) { minPercent = percent; }
+    void setColorScheme(const std::string& scheme) { colorScheme = scheme; }  // "hot", "cold", "category"
+    
+private:
+    float minPercent{0.1f};
+    std::string colorScheme{"hot"};
+    
+    void calculateLayout(FlameNode& node, float startX, float currentY, float totalWidth);
+    uint32_t getColorForNode(const FlameNode& node) const;
+    std::string escapeHTML(const std::string& text) const;
+};
+
+// =============================================================================
+// REAL-TIME OVERLAY VISUALIZATION
+// =============================================================================
+
+/**
+ * @brief Overlay graph type
+ */
+enum class OverlayGraphType {
+    Line,
+    Bar,
+    FilledLine,
+    Histogram,
+    Stacked
+};
+
+/**
+ * @brief Data series for overlay graphs
+ */
+struct OverlaySeries {
+    std::string name;
+    std::vector<float> values;
+    uint32_t color{0xFFFFFFFF};
+    float minValue{0.0f};
+    float maxValue{100.0f};
+    bool autoScale{true};
+    bool visible{true};
+};
+
+/**
+ * @brief Overlay graph configuration
+ */
+struct OverlayGraph {
+    std::string title;
+    OverlayGraphType type{OverlayGraphType::Line};
+    std::vector<OverlaySeries> series;
+    
+    // Layout
+    float x{0.0f}, y{0.0f};
+    float width{200.0f}, height{80.0f};
+    
+    // Appearance
+    uint32_t backgroundColor{0x80000000};
+    uint32_t borderColor{0xFFFFFFFF};
+    uint32_t gridColor{0x40FFFFFF};
+    bool showGrid{true};
+    bool showLegend{true};
+    bool showValues{true};
+    
+    // Data settings
+    int maxSamples{120};
+    float updateInterval{0.0f};     // 0 = every frame
+};
+
+/**
+ * @brief Real-time performance overlay
+ */
+class PerformanceOverlay {
+public:
+    PerformanceOverlay();
+    ~PerformanceOverlay();
+    
+    // Graph management
+    int addGraph(const OverlayGraph& graph);
+    void removeGraph(int graphId);
+    OverlayGraph* getGraph(int graphId);
+    
+    // Data updates
+    void pushValue(int graphId, const std::string& seriesName, float value);
+    void pushValues(int graphId, const std::unordered_map<std::string, float>& values);
+    
+    // Preset graphs
+    int addFPSGraph(float x = 10, float y = 10);
+    int addFrameTimeGraph(float x = 10, float y = 100);
+    int addMemoryGraph(float x = 10, float y = 190);
+    int addCPUGraph(float x = 10, float y = 280);
+    int addGPUGraph(float x = 10, float y = 370);
+    
+    // Update and render
+    void update(float deltaTime);
+    void render();                  // Call your rendering callback
+    
+    // Render callbacks (implement for your graphics API)
+    using DrawRectFunc = std::function<void(float x, float y, float w, float h, uint32_t color)>;
+    using DrawLineFunc = std::function<void(float x1, float y1, float x2, float y2, uint32_t color)>;
+    using DrawTextFunc = std::function<void(float x, float y, const std::string& text, uint32_t color)>;
+    
+    void setDrawRectCallback(DrawRectFunc func) { drawRect = func; }
+    void setDrawLineCallback(DrawLineFunc func) { drawLine = func; }
+    void setDrawTextCallback(DrawTextFunc func) { drawText = func; }
+    
+    // Visibility
+    void setVisible(bool visible) { this->visible = visible; }
+    bool isVisible() const { return visible; }
+    void toggleVisibility() { visible = !visible; }
+    
+    // Layout
+    void setPosition(float x, float y);
+    void setScale(float scale) { this->scale = scale; }
+    
+private:
+    std::unordered_map<int, OverlayGraph> graphs;
+    int nextGraphId{0};
+    bool visible{true};
+    float scale{1.0f};
+    float baseX{0.0f}, baseY{0.0f};
+    
+    DrawRectFunc drawRect;
+    DrawLineFunc drawLine;
+    DrawTextFunc drawText;
+    
+    void renderGraph(const OverlayGraph& graph);
+    void renderLineGraph(const OverlayGraph& graph);
+    void renderBarGraph(const OverlayGraph& graph);
+    void renderHistogram(const OverlayGraph& graph);
+};
+
+// =============================================================================
+// PROFILER DATA EXPORT
+// =============================================================================
+
+/**
+ * @brief Export format types
+ */
+enum class ProfileExportFormat {
+    JSON,
+    CSV,
+    ChromeTrace,        // Chrome chrome://tracing format
+    Tracy,              // Tracy profiler format
+    Perfetto,           // Google Perfetto format
+    HTML,               // Self-contained HTML report
+    XML,
+    Binary              // Compact binary format
+};
+
+/**
+ * @brief Profile data exporter
+ */
+class ProfileDataExporter {
+public:
+    ProfileDataExporter();
+    
+    // Export profiler data
+    void exportFrameStats(const std::vector<FrameStats>& stats, const std::string& filepath, ProfileExportFormat format);
+    void exportTimeline(const std::vector<TimelineFrame>& frames, const std::string& filepath, ProfileExportFormat format);
+    void exportCallStack(const CallStackEntry& root, const std::string& filepath, ProfileExportFormat format);
+    void exportGPUProfile(const GPUProfiler& profiler, const std::string& filepath, ProfileExportFormat format);
+    
+    // Comprehensive export
+    struct ExportData {
+        std::vector<FrameStats> frameStats;
+        std::vector<TimelineFrame> timeline;
+        CallStackEntry callStack;
+        std::vector<GPUTimingResult> gpuTimings;
+        std::vector<GPUMemoryPool> gpuMemory;
+        MemoryStats memoryStats;
+        
+        // Metadata
+        std::string appName;
+        std::string buildVersion;
+        std::string captureTime;
+        std::string platform;
+        std::string gpuName;
+    };
+    
+    void exportComprehensive(const ExportData& data, const std::string& filepath, ProfileExportFormat format);
+    
+    // Chrome trace format (for chrome://tracing)
+    std::string toChromeTrace(const std::vector<TimelineFrame>& frames);
+    
+    // Perfetto format (for ui.perfetto.dev)
+    std::vector<uint8_t> toPerfetto(const std::vector<TimelineFrame>& frames);
+    
+    // HTML report
+    std::string toHTMLReport(const ExportData& data);
+    
+    // Import
+    ExportData importFromFile(const std::string& filepath);
+    
+private:
+    std::string escapeJSON(const std::string& str) const;
+    std::string formatTimestamp(uint64_t timestamp) const;
+};
+
+/**
+ * @brief Continuous profiler recorder for long sessions
+ */
+class ProfileRecorder {
+public:
+    ProfileRecorder();
+    ~ProfileRecorder();
+    
+    // Recording control
+    void startRecording(const std::string& filepath);
+    void stopRecording();
+    bool isRecording() const { return recording; }
+    
+    // Data sources
+    void setTimelineProfiler(TimelineProfiler* profiler) { timeline = profiler; }
+    void setGPUProfiler(GPUProfiler* profiler) { gpu = profiler; }
+    void setCallStackProfiler(CallStackProfiler* profiler) { callStack = profiler; }
+    
+    // Frame recording
+    void recordFrame();
+    
+    // Configuration
+    void setMaxFileSize(size_t bytes) { maxFileSize = bytes; }
+    void setRingBuffer(bool enable) { useRingBuffer = enable; }
+    void setCompression(bool enable) { compress = enable; }
+    
+    // Statistics
+    struct RecordingStats {
+        size_t framesRecorded;
+        size_t bytesWritten;
+        float recordingDuration;
+        std::string filepath;
+    };
+    RecordingStats getStatistics() const;
+    
+private:
+    TimelineProfiler* timeline{nullptr};
+    GPUProfiler* gpu{nullptr};
+    CallStackProfiler* callStack{nullptr};
+    
+    std::ofstream outputFile;
+    std::string outputPath;
+    bool recording{false};
+    size_t maxFileSize{100 * 1024 * 1024};  // 100MB default
+    bool useRingBuffer{false};
+    bool compress{false};
+    
+    RecordingStats stats{};
+};
+
+// =============================================================================
 // Macros for convenient profiling
 // =============================================================================
 
@@ -699,6 +1121,10 @@ public:
     #define GPU_DEBUG_REGION(name) ScopedGPUDebugRegion gpuRegion##__LINE__(name)
     #define GPU_DEBUG_REGION_COLOR(name, r, g, b) ScopedGPUDebugRegion gpuRegion##__LINE__(name, r, g, b)
     #define GPU_DEBUG_MARKER(text) GPUDebugMarker::insert(text)
+    
+    // Timeline macros
+    #define TIMELINE_EVENT(track, name) ScopedTimelineEvent tlEvent##__LINE__(*TimelineProfiler::getInstance(), track, name)
+    #define TIMELINE_MARKER(name) TimelineProfiler::getInstance()->addMarker(name)
 #else
     #define PROFILE_FUNCTION()
     #define PROFILE_SCOPE(name)
@@ -712,6 +1138,9 @@ public:
     #define GPU_DEBUG_REGION(name)
     #define GPU_DEBUG_REGION_COLOR(name, r, g, b)
     #define GPU_DEBUG_MARKER(text)
+    
+    #define TIMELINE_EVENT(track, name)
+    #define TIMELINE_MARKER(name)
 #endif
 
 } // namespace Utils
