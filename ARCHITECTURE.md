@@ -6,10 +6,10 @@
 
 The Velocity Engine follows several key principles:
 
-1. **Modularity**: Systems are designed as independent modules with minimal coupling
-2. **Performance**: Optimized for 2D game performance with hardware acceleration
-3. **Extensibility**: Plugin system and clear interfaces for customization
-4. **Developer-Friendly**: Clear APIs, comprehensive documentation, and debugging tools
+1. **Modularity**: Systems are designed as independent modules with minimal coupling and clear interfaces
+2. **Performance**: Optimized for 2D game performance with hardware acceleration and efficient memory usage
+3. **Extensibility**: Plugin system and clear interfaces for customization and feature additions
+4. **Developer-Friendly**: Clear APIs, comprehensive documentation, and debugging tools for rapid development
 
 ### System Overview
 
