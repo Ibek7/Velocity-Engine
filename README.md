@@ -52,13 +52,13 @@ sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf
 # Build the project
 make
 
-# Build with debug symbols
+# Build with debug symbols and optimizations
 make debug
 
 # Clean build artifacts
 make clean
 
-# Build and run
+# Build and run the application
 make run
 ```
 
