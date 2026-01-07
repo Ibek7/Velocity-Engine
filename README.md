@@ -1,6 +1,6 @@
 # JJM Game Engine
 
-A lightweight, modular 2D game engine built with C++ and SDL2, designed for creating games and interactive applications.
+A lightweight, modular 2D game engine built with C++ and SDL2, designed for creating games and interactive applications with high performance and flexibility.
 
 ## Features
 
