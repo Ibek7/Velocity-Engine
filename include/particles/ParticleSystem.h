@@ -366,6 +366,643 @@ T* AdvancedParticleEmitter::addAffector(Args&&... args) {
     return ptr;
 }
 
+// =============================================================================
+// EMITTER SHAPES
+// =============================================================================
+
+/**
+ * @brief Emission shape types
+ */
+enum class EmitterShapeType {
+    Point,
+    Circle,
+    CircleEdge,
+    Sphere,
+    SphereShell,
+    Hemisphere,
+    Cone,
+    Box,
+    BoxEdge,
+    BoxShell,
+    Line,
+    Mesh,
+    SkinnedMesh,
+    Custom
+};
+
+/**
+ * @brief Base emitter shape
+ */
+class EmitterShape {
+public:
+    virtual ~EmitterShape() = default;
+    
+    virtual EmitterShapeType getType() const = 0;
+    virtual void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const = 0;
+    
+    // 3D version for future expansion
+    virtual void getEmissionPoint3D(float& x, float& y, float& z,
+                                     float& dirX, float& dirY, float& dirZ) const {
+        Math::Vector2D pos, dir;
+        getEmissionPoint(pos, dir);
+        x = pos.x; y = pos.y; z = 0.0f;
+        dirX = dir.x; dirY = dir.y; dirZ = 0.0f;
+    }
+    
+    // Randomization
+    void setRandomizeDirection(bool randomize) { randomizeDirection = randomize; }
+    void setDirectionSpread(float spread) { directionSpread = spread; }
+    
+protected:
+    bool randomizeDirection{false};
+    float directionSpread{0.0f};
+    
+    float randomFloat(float min, float max) const;
+    float randomAngle() const;
+};
+
+/**
+ * @brief Point emitter shape
+ */
+class PointShape : public EmitterShape {
+public:
+    PointShape(const Math::Vector2D& point = Math::Vector2D(0, 0));
+    
+    EmitterShapeType getType() const override { return EmitterShapeType::Point; }
+    void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const override;
+    
+    void setPosition(const Math::Vector2D& pos) { point = pos; }
+    
+private:
+    Math::Vector2D point;
+};
+
+/**
+ * @brief Circle emitter shape
+ */
+class CircleShape : public EmitterShape {
+public:
+    CircleShape(const Math::Vector2D& center, float radius, bool edgeOnly = false);
+    
+    EmitterShapeType getType() const override { return edgeOnly ? EmitterShapeType::CircleEdge : EmitterShapeType::Circle; }
+    void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const override;
+    
+    void setCenter(const Math::Vector2D& c) { center = c; }
+    void setRadius(float r) { radius = r; }
+    void setEdgeOnly(bool edge) { edgeOnly = edge; }
+    void setArc(float startAngle, float endAngle);
+    
+private:
+    Math::Vector2D center;
+    float radius;
+    bool edgeOnly;
+    float arcStart{0.0f};
+    float arcEnd{360.0f};
+};
+
+/**
+ * @brief Cone emitter shape
+ */
+class ConeShape : public EmitterShape {
+public:
+    ConeShape(const Math::Vector2D& apex, float angle, float length);
+    
+    EmitterShapeType getType() const override { return EmitterShapeType::Cone; }
+    void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const override;
+    
+    void setApex(const Math::Vector2D& a) { apex = a; }
+    void setAngle(float a) { angle = a; }
+    void setLength(float l) { length = l; }
+    void setEmitFromBase(bool fromBase) { emitFromBase = fromBase; }
+    
+private:
+    Math::Vector2D apex;
+    float angle;
+    float length;
+    bool emitFromBase{false};
+};
+
+/**
+ * @brief Box emitter shape
+ */
+class BoxShape : public EmitterShape {
+public:
+    BoxShape(const Math::Vector2D& center, const Math::Vector2D& size, bool edgeOnly = false);
+    
+    EmitterShapeType getType() const override { return edgeOnly ? EmitterShapeType::BoxEdge : EmitterShapeType::Box; }
+    void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const override;
+    
+    void setCenter(const Math::Vector2D& c) { center = c; }
+    void setSize(const Math::Vector2D& s) { size = s; }
+    
+private:
+    Math::Vector2D center;
+    Math::Vector2D size;
+    bool edgeOnly;
+};
+
+/**
+ * @brief Line emitter shape
+ */
+class LineShape : public EmitterShape {
+public:
+    LineShape(const Math::Vector2D& start, const Math::Vector2D& end);
+    
+    EmitterShapeType getType() const override { return EmitterShapeType::Line; }
+    void getEmissionPoint(Math::Vector2D& position, Math::Vector2D& direction) const override;
+    
+    void setPoints(const Math::Vector2D& s, const Math::Vector2D& e) { start = s; end = e; }
+    
+private:
+    Math::Vector2D start;
+    Math::Vector2D end;
+};
+
+// =============================================================================
+// NOISE AND CURL NOISE
+// =============================================================================
+
+/**
+ * @brief Noise types for particle motion
+ */
+enum class NoiseType {
+    Perlin,
+    Simplex,
+    Worley,
+    Curl,           // Curl noise (divergence-free)
+    FBM,            // Fractal Brownian Motion
+    Turbulence
+};
+
+/**
+ * @brief Noise field configuration
+ */
+struct NoiseFieldConfig {
+    NoiseType type{NoiseType::Curl};
+    float frequency{1.0f};
+    float amplitude{1.0f};
+    int octaves{4};
+    float persistence{0.5f};
+    float lacunarity{2.0f};
+    float scrollSpeed{0.0f};
+    Math::Vector2D scrollDirection{1.0f, 0.0f};
+    
+    // Quality
+    int resolution{128};
+    bool useGPU{false};
+};
+
+/**
+ * @brief 2D/3D noise field for particle motion
+ */
+class NoiseField {
+public:
+    NoiseField(const NoiseFieldConfig& config = {});
+    ~NoiseField();
+    
+    // Sampling
+    Math::Vector2D sample(const Math::Vector2D& position) const;
+    void sample3D(float x, float y, float z, float& outX, float& outY, float& outZ) const;
+    
+    // Configuration
+    void setConfig(const NoiseFieldConfig& config);
+    const NoiseFieldConfig& getConfig() const { return config; }
+    
+    // Animation
+    void update(float deltaTime);
+    void setTime(float time) { currentTime = time; }
+    float getTime() const { return currentTime; }
+    
+    // GPU texture generation
+    unsigned int generateNoiseTexture() const;
+    unsigned int generateCurlTexture() const;
+    
+private:
+    NoiseFieldConfig config;
+    float currentTime{0.0f};
+    
+    float perlinNoise(float x, float y) const;
+    float simplexNoise(float x, float y) const;
+    Math::Vector2D curlNoise(float x, float y) const;
+};
+
+/**
+ * @brief Noise-based particle affector
+ */
+class NoiseAffector : public ParticleAffector {
+public:
+    NoiseAffector(const NoiseFieldConfig& config = {});
+    
+    void affect(Particle& particle, float deltaTime) override;
+    void update(float deltaTime);
+    
+    NoiseField& getNoiseField() { return noiseField; }
+    void setPositionScale(float scale) { positionScale = scale; }
+    
+private:
+    NoiseField noiseField;
+    float positionScale{0.01f};
+};
+
+// =============================================================================
+// PARTICLE TRAILS
+// =============================================================================
+
+/**
+ * @brief Trail vertex data
+ */
+struct TrailVertex {
+    float x, y, z;
+    float u, v;
+    float r, g, b, a;
+    float width;
+};
+
+/**
+ * @brief Trail point in history
+ */
+struct TrailPoint {
+    Math::Vector2D position;
+    Graphics::Color color;
+    float width;
+    float lifetime;
+    float age;
+};
+
+/**
+ * @brief Particle trail configuration
+ */
+struct TrailConfig {
+    float lifetime{1.0f};
+    float minVertexDistance{0.1f};      // Minimum distance between trail points
+    int maxPoints{50};
+    float widthStart{1.0f};
+    float widthEnd{0.0f};
+    Graphics::Color colorStart{1.0f, 1.0f, 1.0f, 1.0f};
+    Graphics::Color colorEnd{1.0f, 1.0f, 1.0f, 0.0f};
+    
+    // Texture
+    bool useTexture{false};
+    unsigned int textureId{0};
+    float textureMode{0};               // 0 = stretch, 1 = tile
+    float textureScale{1.0f};
+    
+    // Rendering
+    bool worldSpace{true};              // Trail in world space or local to emitter
+    bool inheritParticleColor{true};
+    bool dieWithParticle{true};
+};
+
+/**
+ * @brief Particle trail renderer
+ */
+class ParticleTrail {
+public:
+    ParticleTrail(const TrailConfig& config = {});
+    ~ParticleTrail();
+    
+    // Update
+    void addPoint(const Math::Vector2D& position, const Graphics::Color& color, float width);
+    void update(float deltaTime);
+    void clear();
+    
+    // Rendering
+    void render(Graphics::Renderer* renderer);
+    void generateMesh(std::vector<TrailVertex>& vertices, std::vector<uint32_t>& indices);
+    
+    // Configuration
+    void setConfig(const TrailConfig& config) { this->config = config; }
+    const TrailConfig& getConfig() const { return config; }
+    
+    // Query
+    size_t getPointCount() const { return points.size(); }
+    bool isEmpty() const { return points.empty(); }
+    float getLength() const;
+    
+private:
+    TrailConfig config;
+    std::vector<TrailPoint> points;
+    float accumulatedDistance{0.0f};
+    Math::Vector2D lastPosition;
+    bool hasLastPosition{false};
+    
+    void removeOldPoints();
+    Graphics::Color interpolateColor(float t) const;
+    float interpolateWidth(float t) const;
+};
+
+/**
+ * @brief Trail manager for multiple trails
+ */
+class ParticleTrailManager {
+public:
+    ParticleTrailManager(int maxTrails = 1000);
+    ~ParticleTrailManager();
+    
+    // Trail management
+    int createTrail(const TrailConfig& config = {});
+    void destroyTrail(int trailId);
+    ParticleTrail* getTrail(int trailId);
+    
+    // Batch operations
+    void updateAll(float deltaTime);
+    void renderAll(Graphics::Renderer* renderer);
+    void clearAll();
+    
+    // Statistics
+    size_t getActiveTrailCount() const;
+    size_t getTotalPointCount() const;
+    
+private:
+    std::unordered_map<int, std::unique_ptr<ParticleTrail>> trails;
+    int nextTrailId{0};
+    int maxTrails;
+};
+
+// =============================================================================
+// PARTICLE LOD SYSTEM
+// =============================================================================
+
+/**
+ * @brief LOD level configuration
+ */
+struct ParticleLODLevel {
+    float distance;                     // Distance threshold
+    float particleCountMultiplier;      // 0-1 multiplier for particle count
+    float emissionRateMultiplier;       // 0-1 multiplier for emission rate
+    float updateFrequency;              // Updates per second
+    bool enableTrails;
+    bool enableSubEmitters;
+    bool enableCollision;
+    bool enableSorting;
+    int maxParticles;                   // Override max particles (-1 = no override)
+    
+    ParticleLODLevel()
+        : distance(0.0f)
+        , particleCountMultiplier(1.0f)
+        , emissionRateMultiplier(1.0f)
+        , updateFrequency(60.0f)
+        , enableTrails(true)
+        , enableSubEmitters(true)
+        , enableCollision(true)
+        , enableSorting(true)
+        , maxParticles(-1)
+    {}
+};
+
+/**
+ * @brief Particle LOD manager
+ */
+class ParticleLODManager {
+public:
+    ParticleLODManager();
+    
+    // LOD level setup
+    void addLODLevel(const ParticleLODLevel& level);
+    void clearLODLevels();
+    void setLODLevels(const std::vector<ParticleLODLevel>& levels);
+    const std::vector<ParticleLODLevel>& getLODLevels() const { return lodLevels; }
+    
+    // LOD calculation
+    int calculateLODLevel(float distance) const;
+    const ParticleLODLevel& getLODForDistance(float distance) const;
+    
+    // Global settings
+    void setLODBias(float bias) { lodBias = bias; }
+    float getLODBias() const { return lodBias; }
+    void setEnabled(bool enabled) { this->enabled = enabled; }
+    bool isEnabled() const { return enabled; }
+    
+    // Screen size based LOD
+    void setScreenSizeLOD(bool enabled) { useScreenSize = enabled; }
+    float calculateScreenSize(float distance, float boundingRadius, float fov, float screenHeight) const;
+    
+    // Presets
+    static ParticleLODManager createDefaultLOD();
+    static ParticleLODManager createAggressiveLOD();
+    static ParticleLODManager createQualityLOD();
+    
+private:
+    std::vector<ParticleLODLevel> lodLevels;
+    float lodBias{1.0f};
+    bool enabled{true};
+    bool useScreenSize{false};
+    
+    static ParticleLODLevel defaultLevel;
+};
+
+// =============================================================================
+// GPU PARTICLE SIMULATION
+// =============================================================================
+
+/**
+ * @brief GPU particle data layout
+ */
+struct GPUParticle {
+    float positionX, positionY, positionZ;
+    float velocityX, velocityY, velocityZ;
+    float colorR, colorG, colorB, colorA;
+    float size;
+    float rotation;
+    float lifetime;
+    float age;
+    uint32_t flags;
+    float userData[3];          // Custom data
+};
+
+/**
+ * @brief GPU particle buffer configuration
+ */
+struct GPUParticleBufferConfig {
+    int maxParticles{10000};
+    bool doubleBuffered{true};
+    bool useAtomicCounters{true};
+    bool useIndirectDraw{true};
+    int sortBuckets{256};       // For GPU radix sort
+};
+
+/**
+ * @brief GPU particle emitter configuration
+ */
+struct GPUEmitterConfig {
+    EmitterShapeType shape{EmitterShapeType::Point};
+    float emissionRate{100.0f};
+    float lifetime{2.0f};
+    float lifetimeVariation{0.5f};
+    float speed{5.0f};
+    float speedVariation{2.0f};
+    float size{1.0f};
+    float sizeVariation{0.5f};
+    float rotation{0.0f};
+    float rotationSpeed{0.0f};
+    Graphics::Color colorStart{1.0f, 1.0f, 1.0f, 1.0f};
+    Graphics::Color colorEnd{1.0f, 1.0f, 1.0f, 0.0f};
+    
+    // Shape parameters
+    float shapeRadius{1.0f};
+    float shapeAngle{30.0f};
+    float shapeLength{1.0f};
+};
+
+/**
+ * @brief GPU force field types
+ */
+enum class GPUForceType {
+    Directional,
+    Point,
+    Vortex,
+    Turbulence,
+    Curl
+};
+
+/**
+ * @brief GPU force field data
+ */
+struct GPUForceField {
+    GPUForceType type;
+    float positionX, positionY, positionZ;
+    float directionX, directionY, directionZ;
+    float strength;
+    float radius;
+    float falloff;
+    bool enabled;
+};
+
+/**
+ * @brief GPU-based particle system
+ */
+class GPUParticleSystem {
+public:
+    GPUParticleSystem(const GPUParticleBufferConfig& config = {});
+    ~GPUParticleSystem();
+    
+    // Initialization
+    bool initialize();
+    void shutdown();
+    bool isInitialized() const { return initialized; }
+    
+    // Emitter management
+    int addEmitter(const GPUEmitterConfig& config);
+    void removeEmitter(int emitterId);
+    void updateEmitter(int emitterId, const GPUEmitterConfig& config);
+    GPUEmitterConfig* getEmitterConfig(int emitterId);
+    
+    // Force fields
+    int addForceField(const GPUForceField& field);
+    void removeForceField(int fieldId);
+    void updateForceField(int fieldId, const GPUForceField& field);
+    
+    // Simulation
+    void emit(int emitterId, int count);
+    void update(float deltaTime);
+    void render(const float* viewMatrix, const float* projectionMatrix);
+    
+    // Sorting
+    void setSortingEnabled(bool enabled) { sortingEnabled = enabled; }
+    bool isSortingEnabled() const { return sortingEnabled; }
+    void sort(float cameraX, float cameraY, float cameraZ);
+    
+    // Buffers
+    unsigned int getParticleBuffer() const { return particleBuffer; }
+    unsigned int getAliveCountBuffer() const { return aliveCountBuffer; }
+    unsigned int getDeadListBuffer() const { return deadListBuffer; }
+    
+    // Statistics
+    struct GPUStats {
+        int aliveParticles;
+        int totalCapacity;
+        int activeEmitters;
+        int activeForceFields;
+        float simulationTimeMs;
+        float renderTimeMs;
+    };
+    GPUStats getStatistics() const;
+    
+    // Configuration
+    void setGlobalGravity(float x, float y, float z);
+    void setGlobalDrag(float drag) { globalDrag = drag; }
+    void setTimeScale(float scale) { timeScale = scale; }
+    
+private:
+    GPUParticleBufferConfig config;
+    bool initialized{false};
+    
+    // GPU buffers
+    unsigned int particleBuffer{0};
+    unsigned int aliveListBuffer{0};
+    unsigned int deadListBuffer{0};
+    unsigned int aliveCountBuffer{0};
+    unsigned int indirectDrawBuffer{0};
+    
+    // Sort buffers
+    unsigned int sortKeysBuffer{0};
+    unsigned int sortValuesBuffer{0};
+    bool sortingEnabled{true};
+    
+    // Compute shaders
+    unsigned int emitShader{0};
+    unsigned int updateShader{0};
+    unsigned int sortShader{0};
+    
+    // Render shader
+    unsigned int renderShader{0};
+    unsigned int vao{0};
+    
+    // Emitters and forces
+    std::unordered_map<int, GPUEmitterConfig> emitters;
+    std::unordered_map<int, GPUForceField> forceFields;
+    unsigned int emitterBuffer{0};
+    unsigned int forceFieldBuffer{0};
+    int nextEmitterId{0};
+    int nextForceFieldId{0};
+    
+    // Global parameters
+    float globalGravity[3]{0.0f, -9.8f, 0.0f};
+    float globalDrag{0.1f};
+    float timeScale{1.0f};
+    
+    mutable GPUStats stats{};
+    
+    void createBuffers();
+    void deleteBuffers();
+    void uploadEmitters();
+    void uploadForceFields();
+    void runEmitCompute(int emitterId, int count);
+    void runUpdateCompute(float deltaTime);
+    void runSortCompute(float cameraX, float cameraY, float cameraZ);
+};
+
+// =============================================================================
+// PARTICLE SYSTEM PRESETS
+// =============================================================================
+
+/**
+ * @brief Common particle effect presets
+ */
+class ParticlePresets {
+public:
+    // Fire and smoke
+    static std::unique_ptr<AdvancedParticleEmitter> createFire(const Math::Vector2D& position, float intensity = 1.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createSmoke(const Math::Vector2D& position, float intensity = 1.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createExplosion(const Math::Vector2D& position, float radius = 1.0f);
+    
+    // Nature
+    static std::unique_ptr<AdvancedParticleEmitter> createRain(const Math::Vector2D& position, float width = 10.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createSnow(const Math::Vector2D& position, float width = 10.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createLeaves(const Math::Vector2D& position, float area = 5.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createDust(const Math::Vector2D& position, float intensity = 1.0f);
+    
+    // Magic/Effects
+    static std::unique_ptr<AdvancedParticleEmitter> createSparkle(const Math::Vector2D& position, float intensity = 1.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createMagicAura(const Math::Vector2D& position, float radius = 1.0f);
+    static std::unique_ptr<AdvancedParticleEmitter> createPortal(const Math::Vector2D& position, float radius = 2.0f);
+    
+    // UI/Feedback
+    static std::unique_ptr<AdvancedParticleEmitter> createConfetti(const Math::Vector2D& position, int count = 100);
+    static std::unique_ptr<AdvancedParticleEmitter> createStars(const Math::Vector2D& position, int count = 20);
+    static std::unique_ptr<AdvancedParticleEmitter> createHeartBurst(const Math::Vector2D& position, int count = 30);
+};
+
 } // namespace Particles
 } // namespace JJM
 
