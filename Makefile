@@ -1,4 +1,6 @@
 # JJM Game Engine Makefile
+# Build configuration and compilation settings
+
 # Compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude -I/opt/homebrew/include/SDL2
