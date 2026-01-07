@@ -358,6 +358,472 @@ private:
                                RaycastHit& outHit) const;
 };
 
+// =============================================================================
+// PHYSICS JOINTS AND CONSTRAINTS
+// =============================================================================
+
+/**
+ * @brief Joint types
+ */
+enum class JointType {
+    Distance,       // Maintains fixed distance between bodies
+    Revolute,       // Hinge joint with rotation around anchor
+    Prismatic,      // Slider joint with linear motion
+    Spring,         // Spring connection with damping
+    Rope,           // Maximum distance constraint (slack allowed)
+    Weld,           // Rigidly connects two bodies
+    Wheel,          // For vehicle wheels
+    Pulley,         // Pulley system between bodies
+    Gear,           // Links rotation of two revolute joints
+    Motor           // Applies angular velocity
+};
+
+/**
+ * @brief Joint limit state
+ */
+enum class JointLimitState {
+    Inactive,
+    AtLower,
+    AtUpper,
+    Equal
+};
+
+/**
+ * @brief Base joint configuration
+ */
+struct JointConfig {
+    ECS::Entity* bodyA{nullptr};
+    ECS::Entity* bodyB{nullptr};
+    Math::Vector2D anchorA;         // Local anchor on body A
+    Math::Vector2D anchorB;         // Local anchor on body B
+    bool collideConnected{false};   // Allow connected bodies to collide
+    float breakForce{0.0f};         // 0 = unbreakable
+    float breakTorque{0.0f};
+    void* userData{nullptr};
+};
+
+/**
+ * @brief Distance joint keeps bodies at fixed distance
+ */
+struct DistanceJointConfig : public JointConfig {
+    float length{-1.0f};            // -1 = auto-compute from initial positions
+    float minLength{0.0f};          // 0 = no min
+    float maxLength{0.0f};          // 0 = no max (uses length)
+    float stiffness{0.0f};          // 0 = rigid, >0 = spring-like
+    float damping{0.0f};
+};
+
+/**
+ * @brief Revolute (hinge) joint allows rotation around anchor
+ */
+struct RevoluteJointConfig : public JointConfig {
+    float referenceAngle{0.0f};
+    bool enableLimit{false};
+    float lowerAngle{0.0f};
+    float upperAngle{0.0f};
+    bool enableMotor{false};
+    float motorSpeed{0.0f};
+    float maxMotorTorque{0.0f};
+};
+
+/**
+ * @brief Prismatic (slider) joint allows linear motion along axis
+ */
+struct PrismaticJointConfig : public JointConfig {
+    Math::Vector2D axis{1.0f, 0.0f}; // Local axis on body A
+    float referenceAngle{0.0f};
+    bool enableLimit{false};
+    float lowerTranslation{0.0f};
+    float upperTranslation{0.0f};
+    bool enableMotor{false};
+    float motorSpeed{0.0f};
+    float maxMotorForce{0.0f};
+};
+
+/**
+ * @brief Spring joint with stiffness and damping
+ */
+struct SpringJointConfig : public JointConfig {
+    float restLength{-1.0f};        // -1 = auto-compute
+    float stiffness{100.0f};        // Spring constant (N/m)
+    float damping{1.0f};            // Damping coefficient
+    float minLength{0.0f};
+    float maxLength{0.0f};          // 0 = unlimited
+};
+
+/**
+ * @brief Wheel joint for vehicles
+ */
+struct WheelJointConfig : public JointConfig {
+    Math::Vector2D axis{0.0f, 1.0f}; // Suspension axis
+    float suspensionStiffness{50.0f};
+    float suspensionDamping{5.0f};
+    float maxSuspensionForce{1000.0f};
+    bool enableMotor{false};
+    float motorSpeed{0.0f};
+    float maxMotorTorque{100.0f};
+};
+
+/**
+ * @brief Abstract joint base class
+ */
+class Joint {
+public:
+    virtual ~Joint() = default;
+    
+    JointType getType() const { return m_type; }
+    ECS::Entity* getBodyA() const { return m_bodyA; }
+    ECS::Entity* getBodyB() const { return m_bodyB; }
+    
+    // Forces and reaction
+    virtual Math::Vector2D getReactionForce(float invDt) const = 0;
+    virtual float getReactionTorque(float invDt) const = 0;
+    
+    // Breaking
+    void setBreakForce(float force) { m_breakForce = force; }
+    void setBreakTorque(float torque) { m_breakTorque = torque; }
+    bool isBroken() const { return m_broken; }
+    
+    // State
+    bool isEnabled() const { return m_enabled; }
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+    
+    // User data
+    void* getUserData() const { return m_userData; }
+    void setUserData(void* data) { m_userData = data; }
+    
+protected:
+    Joint(JointType type, ECS::Entity* bodyA, ECS::Entity* bodyB)
+        : m_type(type), m_bodyA(bodyA), m_bodyB(bodyB) {}
+    
+    JointType m_type;
+    ECS::Entity* m_bodyA;
+    ECS::Entity* m_bodyB;
+    float m_breakForce{0.0f};
+    float m_breakTorque{0.0f};
+    bool m_broken{false};
+    bool m_enabled{true};
+    void* m_userData{nullptr};
+};
+
+/**
+ * @brief Distance joint implementation
+ */
+class DistanceJoint : public Joint {
+public:
+    DistanceJoint(const DistanceJointConfig& config);
+    
+    float getLength() const { return m_length; }
+    void setLength(float length) { m_length = length; }
+    
+    float getMinLength() const { return m_minLength; }
+    void setMinLength(float length) { m_minLength = length; }
+    float getMaxLength() const { return m_maxLength; }
+    void setMaxLength(float length) { m_maxLength = length; }
+    
+    float getStiffness() const { return m_stiffness; }
+    void setStiffness(float stiffness) { m_stiffness = stiffness; }
+    float getDamping() const { return m_damping; }
+    void setDamping(float damping) { m_damping = damping; }
+    
+    float getCurrentLength() const;
+    Math::Vector2D getReactionForce(float invDt) const override;
+    float getReactionTorque(float invDt) const override { return 0.0f; }
+    
+private:
+    Math::Vector2D m_anchorA, m_anchorB;
+    float m_length;
+    float m_minLength, m_maxLength;
+    float m_stiffness, m_damping;
+    float m_impulse{0.0f};
+};
+
+/**
+ * @brief Revolute joint implementation
+ */
+class RevoluteJoint : public Joint {
+public:
+    RevoluteJoint(const RevoluteJointConfig& config);
+    
+    float getJointAngle() const;
+    float getJointSpeed() const;
+    
+    bool isLimitEnabled() const { return m_enableLimit; }
+    void enableLimit(bool enable) { m_enableLimit = enable; }
+    void setLimits(float lower, float upper);
+    float getLowerLimit() const { return m_lowerAngle; }
+    float getUpperLimit() const { return m_upperAngle; }
+    
+    bool isMotorEnabled() const { return m_enableMotor; }
+    void enableMotor(bool enable) { m_enableMotor = enable; }
+    void setMotorSpeed(float speed) { m_motorSpeed = speed; }
+    float getMotorSpeed() const { return m_motorSpeed; }
+    void setMaxMotorTorque(float torque) { m_maxMotorTorque = torque; }
+    float getMotorTorque(float invDt) const;
+    
+    Math::Vector2D getReactionForce(float invDt) const override;
+    float getReactionTorque(float invDt) const override;
+    
+private:
+    Math::Vector2D m_anchorA, m_anchorB;
+    float m_referenceAngle;
+    bool m_enableLimit;
+    float m_lowerAngle, m_upperAngle;
+    bool m_enableMotor;
+    float m_motorSpeed;
+    float m_maxMotorTorque;
+    JointLimitState m_limitState{JointLimitState::Inactive};
+};
+
+/**
+ * @brief Spring joint implementation
+ */
+class SpringJoint : public Joint {
+public:
+    SpringJoint(const SpringJointConfig& config);
+    
+    float getRestLength() const { return m_restLength; }
+    void setRestLength(float length) { m_restLength = length; }
+    
+    float getStiffness() const { return m_stiffness; }
+    void setStiffness(float k) { m_stiffness = k; }
+    
+    float getDamping() const { return m_damping; }
+    void setDamping(float b) { m_damping = b; }
+    
+    float getCurrentLength() const;
+    float getCurrentForce() const;
+    
+    Math::Vector2D getReactionForce(float invDt) const override;
+    float getReactionTorque(float invDt) const override { return 0.0f; }
+    
+private:
+    Math::Vector2D m_anchorA, m_anchorB;
+    float m_restLength;
+    float m_stiffness;
+    float m_damping;
+    float m_minLength, m_maxLength;
+};
+
+/**
+ * @brief Joint manager
+ */
+class JointManager {
+public:
+    JointManager(PhysicsWorld& world);
+    ~JointManager();
+    
+    // Create joints
+    DistanceJoint* createDistanceJoint(const DistanceJointConfig& config);
+    RevoluteJoint* createRevoluteJoint(const RevoluteJointConfig& config);
+    SpringJoint* createSpringJoint(const SpringJointConfig& config);
+    
+    // Destroy joints
+    void destroyJoint(Joint* joint);
+    void destroyAllJoints();
+    void destroyJointsForBody(ECS::Entity* body);
+    
+    // Query
+    std::vector<Joint*> getJointsForBody(ECS::Entity* body) const;
+    size_t getJointCount() const { return m_joints.size(); }
+    
+    // Update
+    void solveVelocityConstraints(float dt);
+    void solvePositionConstraints();
+    void checkBreakage();
+    
+    // Callbacks
+    using JointBreakCallback = std::function<void(Joint*)>;
+    void setOnJointBreak(JointBreakCallback callback) { m_onBreak = callback; }
+    
+private:
+    PhysicsWorld& m_world;
+    std::vector<std::unique_ptr<Joint>> m_joints;
+    JointBreakCallback m_onBreak;
+};
+
+// =============================================================================
+// CONTINUOUS COLLISION DETECTION
+// =============================================================================
+
+/**
+ * @brief Time of impact result
+ */
+struct TOIResult {
+    bool hit{false};
+    float t{1.0f};                  // Time of impact (0-1 of timestep)
+    Math::Vector2D point;
+    Math::Vector2D normal;
+    ECS::Entity* entityA{nullptr};
+    ECS::Entity* entityB{nullptr};
+};
+
+/**
+ * @brief Swept shape for CCD
+ */
+struct SweptShape {
+    ECS::Entity* entity;
+    Math::Vector2D startPos;
+    Math::Vector2D endPos;
+    float startAngle;
+    float endAngle;
+    SpatialAABB sweptBounds;
+};
+
+/**
+ * @brief Continuous collision detector
+ */
+class CCDSolver {
+public:
+    CCDSolver();
+    
+    // Time of impact calculation
+    TOIResult calculateTOI(const SweptShape& shapeA, const SweptShape& shapeB);
+    
+    // Swept collision test
+    bool sweptAABBTest(const SpatialAABB& aStart, const SpatialAABB& aEnd,
+                       const SpatialAABB& bStart, const SpatialAABB& bEnd,
+                       float& outT);
+    
+    bool sweptCircleCircle(const Math::Vector2D& aStart, const Math::Vector2D& aEnd, float radiusA,
+                           const Math::Vector2D& bStart, const Math::Vector2D& bEnd, float radiusB,
+                           float& outT, Math::Vector2D& outPoint, Math::Vector2D& outNormal);
+    
+    bool sweptCircleAABB(const Math::Vector2D& circleStart, const Math::Vector2D& circleEnd, float radius,
+                         const SpatialAABB& box,
+                         float& outT, Math::Vector2D& outPoint, Math::Vector2D& outNormal);
+    
+    // Configuration
+    void setMaxIterations(int iterations) { m_maxIterations = iterations; }
+    void setTolerance(float tolerance) { m_tolerance = tolerance; }
+    
+private:
+    int m_maxIterations{20};
+    float m_tolerance{0.0001f};
+};
+
+// =============================================================================
+// TRIGGER VOLUMES
+// =============================================================================
+
+/**
+ * @brief Trigger volume shape type
+ */
+enum class TriggerShape {
+    Box,
+    Circle,
+    Polygon
+};
+
+/**
+ * @brief Trigger volume for detection without physics response
+ */
+class TriggerVolume {
+public:
+    TriggerVolume(const std::string& name = "");
+    ~TriggerVolume();
+    
+    // Shape setup
+    void setAsBox(const Math::Vector2D& center, const Math::Vector2D& halfExtents, float angle = 0.0f);
+    void setAsCircle(const Math::Vector2D& center, float radius);
+    void setAsPolygon(const std::vector<Math::Vector2D>& vertices);
+    
+    // Transform
+    void setPosition(const Math::Vector2D& pos);
+    void setRotation(float angle);
+    void setScale(float scale);
+    Math::Vector2D getPosition() const { return m_position; }
+    float getRotation() const { return m_rotation; }
+    
+    // Layer filtering
+    void setLayerMask(LayerMask mask) { m_layerMask = mask; }
+    LayerMask getLayerMask() const { return m_layerMask; }
+    
+    // State
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+    bool isEnabled() const { return m_enabled; }
+    
+    // Collision checks
+    bool containsPoint(const Math::Vector2D& point) const;
+    bool intersects(const SpatialAABB& bounds) const;
+    bool intersects(const TriggerVolume& other) const;
+    
+    // Entity tracking
+    const std::unordered_set<ECS::Entity*>& getEntitiesInside() const { return m_entitiesInside; }
+    bool isEntityInside(ECS::Entity* entity) const;
+    
+    // Callbacks
+    using TriggerCallback = std::function<void(TriggerVolume*, ECS::Entity*)>;
+    void setOnEnter(TriggerCallback callback) { m_onEnter = callback; }
+    void setOnStay(TriggerCallback callback) { m_onStay = callback; }
+    void setOnExit(TriggerCallback callback) { m_onExit = callback; }
+    
+    // User data
+    const std::string& getName() const { return m_name; }
+    void setUserData(void* data) { m_userData = data; }
+    void* getUserData() const { return m_userData; }
+    
+    // Internal update
+    void updateEntityTracking(ECS::Entity* entity, bool isInside);
+    
+private:
+    std::string m_name;
+    TriggerShape m_shape{TriggerShape::Box};
+    Math::Vector2D m_position;
+    float m_rotation{0.0f};
+    float m_scale{1.0f};
+    
+    // Shape data
+    Math::Vector2D m_halfExtents;   // For box
+    float m_radius{0.0f};           // For circle
+    std::vector<Math::Vector2D> m_vertices;  // For polygon
+    
+    LayerMask m_layerMask{0xFFFFFFFF};
+    bool m_enabled{true};
+    
+    std::unordered_set<ECS::Entity*> m_entitiesInside;
+    
+    TriggerCallback m_onEnter;
+    TriggerCallback m_onStay;
+    TriggerCallback m_onExit;
+    
+    void* m_userData{nullptr};
+};
+
+/**
+ * @brief Trigger volume manager
+ */
+class TriggerManager {
+public:
+    TriggerManager(PhysicsWorld& world);
+    ~TriggerManager();
+    
+    // Create/destroy triggers
+    TriggerVolume* createTrigger(const std::string& name = "");
+    void destroyTrigger(TriggerVolume* trigger);
+    void destroyTrigger(const std::string& name);
+    void destroyAllTriggers();
+    
+    // Query
+    TriggerVolume* getTrigger(const std::string& name);
+    std::vector<TriggerVolume*> getTriggersAtPoint(const Math::Vector2D& point);
+    std::vector<TriggerVolume*> getTriggersInArea(const SpatialAABB& area);
+    size_t getTriggerCount() const { return m_triggers.size(); }
+    
+    // Update (call each physics step)
+    void update();
+    
+    // Batch callbacks
+    using GlobalTriggerCallback = std::function<void(TriggerVolume*, ECS::Entity*, bool enter)>;
+    void setGlobalCallback(GlobalTriggerCallback callback) { m_globalCallback = callback; }
+    
+private:
+    PhysicsWorld& m_world;
+    std::vector<std::unique_ptr<TriggerVolume>> m_triggers;
+    std::unordered_map<std::string, TriggerVolume*> m_namedTriggers;
+    GlobalTriggerCallback m_globalCallback;
+};
+
 } // namespace Physics
 } // namespace JJM
 
