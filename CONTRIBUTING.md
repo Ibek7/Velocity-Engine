@@ -1,6 +1,6 @@
 # Contributing to JJM Velocity Engine
 
-Thank you for your interest in contributing! This document provides guidelines and best practices for contributing to the project.
+Thank you for your interest in contributing! This document provides comprehensive guidelines and best practices for contributing to the project.
 
 ## Table of Contents
 
