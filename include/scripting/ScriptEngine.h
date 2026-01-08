@@ -356,6 +356,111 @@ public:
     uint64_t startParallel();
 };
 
+/**
+ * @brief Sandboxed script execution environment with controlled API access
+ */
+class ScriptSandbox {
+public:
+    enum class AccessLevel {
+        NONE,           // No access
+        READ_ONLY,      // Can read but not modify
+        LIMITED,        // Limited write access (safe operations only)
+        FULL            // Full access
+    };
+    
+    struct SandboxPermissions {
+        AccessLevel fileSystem;       // File I/O access level
+        AccessLevel network;          // Network operations
+        AccessLevel system;           // System calls (os.execute, etc.)
+        AccessLevel memoryManagement; // GC control, memory limits
+        AccessLevel engineAPI;        // Game engine functions
+        
+        size_t maxMemoryMB;           // Memory limit in megabytes
+        size_t maxExecutionTimeMs;    // Execution time limit
+        size_t maxInstructions;       // Instruction count limit
+        bool allowCoroutines;         // Allow coroutine creation
+        bool allowModuleLoading;      // Allow require/import
+        
+        SandboxPermissions()
+            : fileSystem(AccessLevel::NONE)
+            , network(AccessLevel::NONE)
+            , system(AccessLevel::NONE)
+            , memoryManagement(AccessLevel::LIMITED)
+            , engineAPI(AccessLevel::LIMITED)
+            , maxMemoryMB(16)
+            , maxExecutionTimeMs(1000)
+            , maxInstructions(100000)
+            , allowCoroutines(true)
+            , allowModuleLoading(false)
+        {}
+    };
+    
+    struct ExecutionResult {
+        bool success;
+        ScriptValue returnValue;
+        std::string errorMessage;
+        
+        // Execution statistics
+        size_t instructionsExecuted;
+        size_t memoryUsedBytes;
+        float executionTimeMs;
+        bool hitMemoryLimit;
+        bool hitTimeLimit;
+        bool hitInstructionLimit;
+    };
+    
+private:
+    ScriptEngine* m_engine;
+    SandboxPermissions m_permissions;
+    std::map<std::string, bool> m_allowedFunctions;
+    std::map<std::string, bool> m_allowedModules;
+    
+    // Execution monitoring
+    std::chrono::steady_clock::time_point m_executionStartTime;
+    size_t m_instructionCount;
+    bool m_isExecuting;
+    
+public:
+    ScriptSandbox(ScriptType type = ScriptType::LUA);
+    ~ScriptSandbox();
+    
+    // Sandbox configuration
+    void setPermissions(const SandboxPermissions& perms) { m_permissions = perms; }
+    const SandboxPermissions& getPermissions() const { return m_permissions; }
+    
+    void allowFunction(const std::string& functionName, bool allowed = true);
+    void allowModule(const std::string& moduleName, bool allowed = true);
+    bool isFunctionAllowed(const std::string& functionName) const;
+    bool isModuleAllowed(const std::string& moduleName) const;
+    
+    // Controlled API exposure
+    void exposeEngineAPI(const std::string& apiName, AccessLevel level);
+    void registerSafeFunction(const std::string& name, ScriptFunction::CppFunction func);
+    void setGlobalValue(const std::string& name, const ScriptValue& value, bool readOnly = false);
+    
+    // Sandboxed execution
+    ExecutionResult executeString(const std::string& script);
+    ExecutionResult executeFile(const std::string& filename);
+    ExecutionResult callFunction(const std::string& name, const std::vector<ScriptValue>& args = {});
+    
+    // Security checks (called by engine hooks)
+    bool checkMemoryAllocation(size_t bytes);
+    bool checkFunctionCall(const std::string& functionName);
+    bool checkModuleLoad(const std::string& moduleName);
+    void onInstructionExecuted();
+    
+    // Preset configurations
+    static SandboxPermissions getPresetPermissions(const std::string& presetName);
+    static std::vector<std::string> getAvailablePresets();
+    
+private:
+    void setupSandboxEnvironment();
+    void setupLuaSandbox();
+    void installExecutionHooks();
+    void checkExecutionLimits();
+    void resetExecutionCounters();
+};
+
 class ScriptEngine {
 private:
     ScriptType engineType;
