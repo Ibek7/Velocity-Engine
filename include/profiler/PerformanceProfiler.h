@@ -427,6 +427,21 @@ private:
     std::unordered_map<std::string, std::vector<double>> timerHistory;
     int currentDepth = 0;
     
+    // Hierarchical profiling
+    struct ProfileScope {
+        std::string name;
+        std::chrono::high_resolution_clock::time_point startTime;
+        int depth;
+        int parentIndex;
+        std::vector<int> childIndices;
+    };
+    
+    std::vector<ProfileScope> scopeStack;
+    std::vector<ProfileScope> frameScopes;  // Captured scopes for current frame
+    std::vector<std::vector<ProfileScope>> capturedFrames;  // Frame history
+    size_t maxCapturedFrames = 300;  // 5 seconds at 60fps
+    bool captureEnabled = false;
+    
     // Threading
     mutable std::mutex statsMutex;
     mutable std::mutex profileMutex;
@@ -451,6 +466,20 @@ public:
     void beginFrame();
     void endFrame();
     const FrameStats& getFrameStats() const { return frameStats; }
+    
+    // Hierarchical profiling
+    void pushScope(const std::string& name);
+    void popScope();
+    void enableFrameCapture(bool enable) { captureEnabled = enable; }
+    bool isFrameCaptureEnabled() const { return captureEnabled; }
+    void setMaxCapturedFrames(size_t count) { maxCapturedFrames = count; }
+    
+    // Frame analysis
+    const std::vector<std::vector<ProfileScope>>& getCapturedFrames() const { return capturedFrames; }
+    std::vector<ProfileScope> getFrameScopes(size_t frameIndex) const;
+    ProfileScope getRootScope(size_t frameIndex) const;
+    std::string generateHierarchyReport(size_t frameIndex) const;
+    std::string generateFlameGraph(size_t frameIndex) const;
     
     // Memory tracking
     void trackAllocation(size_t size, const std::string& category = "default");
@@ -503,6 +532,7 @@ private:
     void updateFrameStats(float deltaTime);
     void writeSessionData(const ProfileEntry& entry);
     std::string getCurrentThreadName() const;
+    void captureFrameScopes();
 };
 
 // =============================================================================
