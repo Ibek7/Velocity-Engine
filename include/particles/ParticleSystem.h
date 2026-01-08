@@ -80,6 +80,29 @@ class ParticleSystem {
 private:
     std::vector<ParticleEmitter*> emitters;
     
+    // Performance monitoring
+    struct PerformanceMetrics {
+        int totalParticleCount;
+        float updateTimeMs;
+        float renderTimeMs;
+        float averageUpdateTime;
+        float averageRenderTime;
+        int frameCount;
+        
+        PerformanceMetrics() 
+            : totalParticleCount(0), updateTimeMs(0.0f), renderTimeMs(0.0f),
+              averageUpdateTime(0.0f), averageRenderTime(0.0f), frameCount(0) {}
+        
+        void reset() {
+            updateTimeMs = 0.0f;
+            renderTimeMs = 0.0f;
+            frameCount = 0;
+        }
+    };
+    
+    PerformanceMetrics m_metrics;
+    bool m_enableProfiling;
+    
 public:
     ParticleSystem();
     ~ParticleSystem();
@@ -92,6 +115,16 @@ public:
     void render(Graphics::Renderer* renderer);
     
     int getEmitterCount() const { return static_cast<int>(emitters.size()); }
+    
+    // Performance monitoring
+    void enableProfiling(bool enable) { m_enableProfiling = enable; }
+    bool isProfilingEnabled() const { return m_enableProfiling; }
+    int getTotalParticleCount() const;
+    float getUpdateTimeMs() const { return m_metrics.updateTimeMs; }
+    float getRenderTimeMs() const { return m_metrics.renderTimeMs; }
+    float getAverageUpdateTime() const { return m_metrics.averageUpdateTime; }
+    float getAverageRenderTime() const { return m_metrics.averageRenderTime; }
+    void resetMetrics() { m_metrics.reset(); }
 };
 
 /**
