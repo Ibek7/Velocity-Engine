@@ -916,6 +916,22 @@ public:
     void onActionPressed(const std::string& action, InputCallback callback);
     void onActionReleased(const std::string& action, InputCallback callback);
     
+    // Input rebinding system
+    void rebindKey(const std::string& action, SDL_Keycode newKey);
+    void rebindMouseButton(const std::string& action, MouseButton newButton);
+    void rebindGamepadButton(const std::string& action, int playerIndex, GamepadButton newButton);
+    
+    // Get current bindings
+    std::vector<SDL_Keycode> getKeysForAction(const std::string& action) const;
+    std::vector<MouseButton> getMouseButtonsForAction(const std::string& action) const;
+    std::vector<GamepadButton> getGamepadButtonsForAction(const std::string& action, int playerIndex) const;
+    
+    // Save/load bindings
+    bool saveBindings(const std::string& filePath) const;
+    bool loadBindings(const std::string& filePath);
+    void resetBindingsToDefault();
+    void setDefaultBindings(const std::unordered_map<std::string, std::vector<SDL_Keycode>>& defaults);
+    
     // Text input
     void startTextInput();
     void stopTextInput();
