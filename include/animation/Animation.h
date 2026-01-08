@@ -51,6 +51,18 @@ private:
     
     std::function<void()> onAnimationComplete;
     
+    // Animation event system
+    struct AnimationEvent {
+        int frameIndex;
+        std::function<void()> callback;
+        bool triggered;
+        
+        AnimationEvent(int frame, std::function<void()> cb)
+            : frameIndex(frame), callback(cb), triggered(false) {}
+    };
+    
+    std::unordered_map<std::string, std::vector<AnimationEvent>> animationEvents;
+    
 public:
     Animator();
     
@@ -73,6 +85,14 @@ public:
     void setOnAnimationComplete(const std::function<void()>& callback) {
         onAnimationComplete = callback;
     }
+    
+    // Animation event system
+    void addAnimationEvent(const std::string& clipName, int frameIndex, std::function<void()> callback);
+    void removeAnimationEvents(const std::string& clipName);
+    void clearAllAnimationEvents();
+    
+private:
+    void processAnimationEvents();
 };
 
 // Tween functions for interpolation
