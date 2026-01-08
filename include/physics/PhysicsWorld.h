@@ -308,6 +308,23 @@ public:
     void detectCollisions();
     void resolveCollisions();
     
+    // Broadphase optimization statistics
+    struct BroadphaseStats {
+        int totalBodies;
+        int activeCells;
+        int potentialPairs;
+        int actualCollisions;
+        float broadphaseTimeMs;
+        float narrowphaseTimeMs;
+        
+        BroadphaseStats() 
+            : totalBodies(0), activeCells(0), potentialPairs(0), 
+              actualCollisions(0), broadphaseTimeMs(0.0f), narrowphaseTimeMs(0.0f) {}
+    };
+    
+    BroadphaseStats getBroadphaseStats() const { return m_broadphaseStats; }
+    void resetBroadphaseStats() { m_broadphaseStats = BroadphaseStats(); }
+    
     // Raycasting
     std::optional<RaycastHit> raycast(const Math::Vector2D& origin, 
                                        const Math::Vector2D& direction,
@@ -356,6 +373,9 @@ private:
                                const Math::Vector2D& direction,
                                const Collider& collider,
                                RaycastHit& outHit) const;
+    
+    // Broadphase statistics tracking
+    BroadphaseStats m_broadphaseStats;
 };
 
 // =============================================================================
