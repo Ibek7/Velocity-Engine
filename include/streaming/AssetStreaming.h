@@ -394,6 +394,35 @@ public:
     void preloadAssets(const std::vector<std::string>& assetIds);
     void unloadAssets(const std::vector<std::string>& assetIds);
     
+    // Priority-based streaming
+    void updateAssetPriority(const std::string& assetId, AssetPriority newPriority);
+    void setDistanceBasedPriority(const std::string& assetId, float distance, float criticalDistance = 50.0f);
+    void setVisibilityBasedPriority(const std::string& assetId, bool visible, bool inFrustum);
+    void recalculatePriorities();  // Recalculate all priorities based on game state
+    
+    // Distance and visibility tracking
+    struct ViewerPosition {
+        float x, y, z;
+        float viewDistance;
+        std::vector<std::string> frustumAssets;  // Assets in view frustum
+    };
+    
+    void setViewerPosition(const ViewerPosition& position);
+    ViewerPosition getViewerPosition() const { return m_viewerPosition; }
+    
+    // Async loading with progress tracking
+    struct AsyncLoadGroup {
+        std::string groupId;
+        std::vector<std::string> assetIds;
+        std::atomic<size_t> loadedCount{0};
+        std::function<void(float)> onProgress;  // Progress 0.0-1.0
+        std::function<void()> onComplete;
+    };
+    
+    void loadAssetGroup(const AsyncLoadGroup& group);
+    float getGroupProgress(const std::string& groupId) const;
+    void cancelGroup(const std::string& groupId);
+    
     // Asset access
     AssetHandle getAsset(const std::string& assetId);
     std::shared_ptr<Asset> getAssetDirect(const std::string& assetId);
@@ -493,6 +522,12 @@ private:
     AssetCache assetCache;
     std::atomic<float> globalLODBias{0.0f};
     
+    // Priority and visibility tracking
+    ViewerPosition m_viewerPosition;
+    std::unordered_map<std::string, float> m_assetDistances;
+    std::unordered_map<std::string, AsyncLoadGroup> m_loadGroups;
+    mutable std::mutex m_priorityMutex;
+    
     // Statistics
     mutable StreamingStats stats;
     mutable std::mutex statsMutex;
@@ -503,6 +538,7 @@ private:
     bool loadAssetInternal(const std::string& assetId, const AssetLOD& lod);
     void unloadAssetInternal(const std::string& assetId);
     bool validateAssetMetadata(const AssetMetadata& metadata) const;
+    AssetPriority calculatePriorityFromDistance(float distance, float criticalDistance) const;
     
     // Worker management
     void startWorkers();
