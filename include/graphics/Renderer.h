@@ -275,6 +275,73 @@ public:
                                             int resolution);
 };
 
+/**
+ * @brief Render command buffer for deferred and multi-threaded rendering
+ */
+class RenderCommandBuffer {
+public:
+    enum class CommandType {
+        Clear,
+        DrawQuad,
+        DrawLine,
+        DrawTriangle,
+        DrawCircle,
+        SetTexture,
+        SetBlendMode,
+        SetScissor,
+        PushClipRect,
+        PopClipRect,
+        SetViewport
+    };
+    
+    struct Command {
+        CommandType type;
+        union {
+            struct { float x, y, w, h; Color color; } quad;
+            struct { float x1, y1, x2, y2; Color color; float thickness; } line;
+            struct { float x1, y1, x2, y2, x3, y3; Color color; } triangle;
+            struct { float x, y, radius; Color color; bool filled; } circle;
+            struct { uint32_t colorRGBA; } clear;
+            struct { int x, y, w, h; } viewport;
+        } data;
+        SDL_Texture* texture;
+        uint64_t sortKey;  // For sorting by layer, depth, state
+    };
+    
+    RenderCommandBuffer();
+    ~RenderCommandBuffer();
+    
+    // Command submission
+    void clear(const Color& color);
+    void drawQuad(const Math::Vector2D& pos, const Math::Vector2D& size, const Color& color, SDL_Texture* tex = nullptr);
+    void drawLine(const Math::Vector2D& start, const Math::Vector2D& end, const Color& color, float thickness = 1.0f);
+    void drawTriangle(const Math::Vector2D& p1, const Math::Vector2D& p2, const Math::Vector2D& p3, const Color& color);
+    void drawCircle(const Math::Vector2D& center, float radius, const Color& color, bool filled = false);
+    void setTexture(SDL_Texture* texture);
+    void setBlendMode(SDL_BlendMode mode);
+    void setViewport(int x, int y, int width, int height);
+    
+    // Execution
+    void sort();  // Sort by state to minimize state changes
+    void execute(SDL_Renderer* renderer);
+    void reset();
+    
+    // Parallel submission support
+    RenderCommandBuffer* createThreadLocalBuffer();
+    void mergeBuffers(const std::vector<RenderCommandBuffer*>& buffers);
+    
+    // Statistics
+    size_t getCommandCount() const { return m_commands.size(); }
+    size_t getMemoryUsage() const { return m_commands.capacity() * sizeof(Command); }
+    
+private:
+    std::vector<Command> m_commands;
+    std::mutex m_mutex;
+    
+    uint64_t generateSortKey(int layer, float depth, SDL_Texture* tex, SDL_BlendMode mode) const;
+    void executeCommand(const Command& cmd, SDL_Renderer* renderer);
+};
+
 class Renderer {
 private:
     SDL_Window* window;
@@ -288,6 +355,10 @@ private:
     SDL_Texture* currentTexture;
     SDL_BlendMode currentBlendMode;
     static constexpr size_t MAX_BATCH_SIZE = 10000;
+    
+    // Command buffer system
+    std::unique_ptr<RenderCommandBuffer> m_commandBuffer;
+    bool m_useCommandBuffer;
     
     // Layer system
     std::vector<std::unique_ptr<RenderLayer>> layers;
