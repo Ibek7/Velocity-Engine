@@ -98,16 +98,35 @@ struct ShaderVariantKeyHash {
 };
 
 /**
+ * @brief Shader compilation error information
+ */
+struct ShaderError {
+    int lineNumber;
+    int columnNumber;
+    std::string message;
+    std::string sourceLine;
+    std::string severity;  // "error", "warning", "info"
+    
+    ShaderError() : lineNumber(-1), columnNumber(-1), severity("error") {}
+};
+
+/**
  * @brief Shader compilation result
  */
 struct ShaderCompileResult {
     bool success;
     std::string errorMessage;
     std::vector<std::string> warnings;
+    std::vector<ShaderError> detailedErrors;  // Parsed error information with line numbers
     float compileTimeMs;
     size_t binarySize;
     
     ShaderCompileResult() : success(false), compileTimeMs(0.0f), binarySize(0) {}
+    
+    /**
+     * @brief Get formatted error report with line numbers and context
+     */
+    std::string getFormattedErrors() const;
 };
 
 /**
