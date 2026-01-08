@@ -55,13 +55,74 @@ private:
 class CompositeNode : public BehaviorNode {
 public:
     CompositeNode(const std::string& name);
+    virtual ~CompositeNode() = default;
     
     void addChild(std::unique_ptr<BehaviorNode> child);
+    void insertChild(size_t index, std::unique_ptr<BehaviorNode> child);
+    void removeChild(size_t index);
+    void clearChildren();
+    size_t getChildCount() const { return children.size(); }
+    BehaviorNode* getChild(size_t index);
+    
     void reset() override;
 
 protected:
     std::vector<std::unique_ptr<BehaviorNode>> children;
     size_t currentChild;
+};
+
+/**
+ * @brief Weighted random selector - chooses one child based on weights
+ */
+class WeightedRandomNode : public CompositeNode {
+public:
+    WeightedRandomNode(const std::string& name);
+    
+    void addChild(std::unique_ptr<BehaviorNode> child, float weight);
+    NodeStatus tick(float deltaTime) override;
+    void reset() override;
+
+private:
+    std::vector<float> weights;
+    size_t selectedChild;
+    bool childSelected;
+    
+    size_t selectWeightedRandom();
+};
+
+/**
+ * @brief Probabilistic selector - tries children in order with probabilities
+ */
+class ProbabilisticSelectorNode : public CompositeNode {
+public:
+    ProbabilisticSelectorNode(const std::string& name);
+    
+    void addChild(std::unique_ptr<BehaviorNode> child, float probability);
+    NodeStatus tick(float deltaTime) override;
+    void reset() override;
+
+private:
+    std::vector<float> probabilities;
+};
+
+/**
+ * @brief Dynamic priority selector - evaluates priorities at runtime
+ */
+class DynamicPriorityNode : public CompositeNode {
+public:
+    using PriorityFunc = std::function<float(size_t)>;
+    
+    DynamicPriorityNode(const std::string& name, PriorityFunc priorityFunc);
+    
+    NodeStatus tick(float deltaTime) override;
+    void reset() override;
+
+private:
+    PriorityFunc getPriority;
+    std::vector<size_t> sortedIndices;
+    size_t currentIndex;
+    
+    void sortByPriority();
 };
 
 class SequenceNode : public CompositeNode {
