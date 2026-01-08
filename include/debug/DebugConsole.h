@@ -80,12 +80,30 @@ public:
     
     void render();
     void update(float deltaTime);
+    
+    // Command history navigation
+    void navigateHistoryUp();
+    void navigateHistoryDown();
+    void addToHistory(const std::string& command);
+    size_t getHistorySize() const { return commandHistory.size(); }
+    
+    // Auto-completion
+    std::vector<std::string> getAutoCompleteSuggestions(const std::string& input) const;
+    std::string getAutoCompletion(const std::string& input) const;
+    
+    // Variable inspection
+    void listAllVariables() const;
+    void printVariable(const std::string& name) const;
+    void watchVariable(const std::string& name);
+    void unwatchVariable(const std::string& name);
+    const std::vector<std::string>& getWatchedVariables() const { return watchedVariables; }
 
 private:
     bool visible;
     std::deque<ConsoleMessage> messages;
     std::unordered_map<std::string, ConsoleCommand> commands;
     std::vector<std::string> commandHistory;
+    std::vector<std::string> watchedVariables;  // Variables to display in watch window
     size_t maxMessages;
     ConsoleLogLevel minLogLevel;
     double currentTime;
