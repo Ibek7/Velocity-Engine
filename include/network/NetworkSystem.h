@@ -208,6 +208,100 @@ private:
     void processReceivedPacket(uint32_t sequenceNumber, const std::vector<uint8_t>& data);
 };
 
+/**
+ * @brief Network entity replication system with delta compression
+ */
+class NetworkReplication {
+public:
+    struct ReplicatedEntity {
+        uint32_t entityId;
+        uint32_t ownerId;  // Client that owns this entity
+        bool ownershipTransferable;
+        float updateRate;  // Updates per second
+        float lastUpdateTime;
+        std::vector<uint8_t> lastSnapshot;  // For delta compression
+    };
+    
+    struct EntityUpdate {
+        uint32_t entityId;
+        uint32_t sequenceNumber;
+        bool isDelta;  // True if delta, false if full snapshot
+        std::vector<uint8_t> data;
+    };
+    
+    NetworkReplication();
+    ~NetworkReplication();
+    
+    // Entity registration
+    void registerEntity(uint32_t entityId, uint32_t ownerId, float updateRate = 20.0f);
+    void unregisterEntity(uint32_t entityId);
+    bool isEntityRegistered(uint32_t entityId) const;
+    
+    // Ownership management
+    void setEntityOwner(uint32_t entityId, uint32_t ownerId);
+    uint32_t getEntityOwner(uint32_t entityId) const;
+    void requestOwnership(uint32_t entityId, uint32_t requesterId);
+    
+    // Snapshot and delta compression
+    void captureSnapshot(uint32_t entityId, const uint8_t* data, size_t size);
+    EntityUpdate generateUpdate(uint32_t entityId, bool forceFull = false);
+    void applyUpdate(const EntityUpdate& update);
+    
+    // Client-side prediction
+    void enablePrediction(bool enable) { m_predictionEnabled = enable; }
+    bool isPredictionEnabled() const { return m_predictionEnabled; }
+    void setPredictionWindow(float seconds) { m_predictionWindow = seconds; }
+    void recordInput(uint32_t inputSequence, const uint8_t* data, size_t size);
+    void reconcileState(uint32_t serverSequence, const uint8_t* serverState, size_t size);
+    
+    // Interest management (relevancy)
+    void setRelevancyDistance(float distance) { m_relevancyDistance = distance; }
+    void updateRelevancy(uint32_t clientId, float x, float y);
+    std::vector<uint32_t> getRelevantEntities(uint32_t clientId) const;
+    
+    // Statistics
+    struct ReplicationStats {
+        size_t totalEntityUpdates;
+        size_t deltaUpdates;
+        size_t fullUpdates;
+        float compressionRatio;
+        size_t bytesSent;
+        size_t bytesReceived;
+        float averageUpdateSize;
+    };
+    
+    ReplicationStats getStats() const { return m_stats; }
+    void resetStats();
+    
+private:
+    std::unordered_map<uint32_t, ReplicatedEntity> m_entities;
+    std::unordered_map<uint32_t, std::vector<uint8_t>> m_entityStates;
+    
+    // Client prediction
+    struct InputRecord {
+        uint32_t sequence;
+        std::vector<uint8_t> input;
+        float timestamp;
+    };
+    std::vector<InputRecord> m_inputHistory;
+    bool m_predictionEnabled;
+    float m_predictionWindow;
+    
+    // Interest management
+    struct ClientPosition {
+        float x, y;
+    };
+    std::unordered_map<uint32_t, ClientPosition> m_clientPositions;
+    float m_relevancyDistance;
+    
+    ReplicationStats m_stats;
+    
+    std::vector<uint8_t> computeDelta(const std::vector<uint8_t>& oldData, 
+                                      const std::vector<uint8_t>& newData);
+    std::vector<uint8_t> applyDelta(const std::vector<uint8_t>& baseData, 
+                                    const std::vector<uint8_t>& delta);
+};
+
 class NetworkSerializer {
 public:
     NetworkSerializer();
