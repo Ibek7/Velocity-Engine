@@ -28,21 +28,40 @@ public:
     Math::Vector2D getWorldPosition() const;
     float getWorldRotation() const;
     Math::Vector2D getWorldScale() const;
+    Math::Matrix3x3 getWorldToLocalMatrix() const;
+    
+    // Transform operations
+    void translate(const Math::Vector2D& delta);
+    void rotate(float angleDelta);
+    void scaleBy(const Math::Vector2D& factor);
+    Math::Vector2D transformPoint(const Math::Vector2D& point) const;  // Local to world
+    Math::Vector2D inverseTransformPoint(const Math::Vector2D& point) const;  // World to local
     
     // Hierarchy
     void addChild(std::shared_ptr<SceneNode> child);
     void removeChild(std::shared_ptr<SceneNode> child);
     void removeFromParent();
+    void removeAllChildren();
     std::shared_ptr<SceneNode> findChild(const std::string& name) const;
+    std::vector<std::shared_ptr<SceneNode>> getChildrenRecursive() const;
+    int getDepth() const;  // Distance from root
     
     SceneNode* getParent() const { return parent; }
     const std::vector<std::shared_ptr<SceneNode>>& getChildren() const { return children; }
+    size_t getChildCount() const { return children.size(); }
+    bool hasChildren() const { return !children.empty(); }
+    
+    // Transform propagation
+    void propagateTransform();  // Force update of entire subtree
+    void invalidateWorldTransform();  // Mark this and all children dirty
     
     // Visibility and activity
     void setVisible(bool visible) { this->visible = visible; }
     bool isVisible() const { return visible; }
+    bool isVisibleInHierarchy() const;  // Check parent visibility too
     void setActive(bool active) { this->active = active; }
     bool isActive() const { return active; }
+    bool isActiveInHierarchy() const;  // Check parent active state too
     
     // Update and render
     virtual void update(float deltaTime);
@@ -52,15 +71,21 @@ public:
     const Math::Matrix3x3& getLocalTransform() const;
     const Math::Matrix3x3& getWorldTransform() const;
     
-    // Name
+    // Name and tags
     const std::string& getName() const { return name; }
     void setName(const std::string& name) { this->name = name; }
+    void addTag(const std::string& tag) { tags.push_back(tag); }
+    void removeTag(const std::string& tag);
+    bool hasTag(const std::string& tag) const;
+    const std::vector<std::string>& getTags() const { return tags; }
     
 protected:
     void markDirty();
     void updateTransform() const;
+    void onTransformChanged();  // Override for custom behavior
     
     std::string name;
+    std::vector<std::string> tags;
     Math::Vector2D localPosition;
     float localRotation;
     Math::Vector2D localScale;
@@ -68,6 +93,7 @@ protected:
     mutable Math::Matrix3x3 localTransform;
     mutable Math::Matrix3x3 worldTransform;
     mutable bool transformDirty;
+    mutable bool worldTransformDirty;
     
     SceneNode* parent;
     std::vector<std::shared_ptr<SceneNode>> children;
