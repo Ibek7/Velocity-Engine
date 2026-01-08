@@ -371,6 +371,18 @@ public:
 
 class SpatialAudioSystem {
 public:
+    /**
+     * @brief Attenuation curve types for distance falloff
+     */
+    enum class AttenuationCurve {
+        Linear,             // Linear falloff
+        Inverse,            // 1/distance falloff (realistic)
+        InverseSquare,      // 1/distance² falloff (physical)
+        Logarithmic,        // Logarithmic falloff
+        LogReverse,         // Reverse logarithmic
+        Custom              // User-defined curve
+    };
+    
     SpatialAudioSystem();
     ~SpatialAudioSystem();
     
@@ -391,10 +403,18 @@ public:
     void setReferenceDistance(int soundHandle, float distance);
     void setRolloffFactor(int soundHandle, float factor);
     
+    // Attenuation curves
+    void setAttenuationCurve(int soundHandle, AttenuationCurve curve);
+    void setCustomAttenuationCurve(int soundHandle, std::function<float(float)> curveFunc);
+    AttenuationCurve getAttenuationCurve(int soundHandle) const;
+    
     void update(float deltaTime);
     
+    // Doppler effect enhancements
     void setDopplerFactor(float factor) { dopplerFactor = factor; }
     float getDopplerFactor() const { return dopplerFactor; }
+    void enableDopplerEffect(bool enable) { dopplerEnabled = enable; }
+    bool isDopplerEffectEnabled() const { return dopplerEnabled; }
     
     void setSpeedOfSound(float speed) { speedOfSound = speed; }
     float getSpeedOfSound() const { return speedOfSound; }
@@ -409,6 +429,7 @@ private:
     float dopplerFactor;
     float speedOfSound;
     float masterVolume;
+    bool dopplerEnabled;
     
     int nextSoundHandle;
     
@@ -416,6 +437,9 @@ private:
     
     float calculateDistance(const Math::Vector2D& soundPos) const;
     float calculateAttenuation(float distance, float maxDist, float refDist, float rolloff) const;
+    float calculateAttenuationWithCurve(float distance, float maxDist, float refDist, 
+                                       AttenuationCurve curve, 
+                                       const std::function<float(float)>& customCurve) const;
     float calculateDopplerPitch(const SpatialSound* sound) const;
     float calculatePanning(const Math::Vector2D& soundPos) const;
     
