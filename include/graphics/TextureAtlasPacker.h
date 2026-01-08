@@ -195,6 +195,18 @@ public:
     
     bool saveAtlas(const std::string& imagePath, const std::string& dataPath);
     bool loadAtlas(const std::string& imagePath, const std::string& dataPath);
+    
+    // Auto-packing from directory
+    bool buildFromDirectory(const std::string& directoryPath, 
+                           const std::vector<std::string>& extensions = {".png", ".jpg", ".bmp"});
+    
+    // Automatic size selection
+    bool autoSizeAndBuild(int minSize = 256, int maxSize = 4096, int step = 256);
+    
+    // Optimization metrics
+    float getPackingEfficiency() const;
+    int getWastedSpace() const;
+    int getUsedSpace() const;
 
 private:
     int atlasWidth;
@@ -216,6 +228,7 @@ private:
     
     bool packTextures();
     void blitTexture(Texture* src, int x, int y);
+    bool tryPackWithSize(int width, int height);
 };
 
 class TextureAtlasManager {
