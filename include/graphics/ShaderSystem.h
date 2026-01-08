@@ -330,6 +330,12 @@ public:
     bool loadBinaryCache();
     bool saveBinaryCache();
     
+    // Hot-reload system
+    void enableHotReload(bool enable);
+    bool isHotReloadEnabled() const { return m_hotReloadEnabled; }
+    void checkForChanges();  // Call each frame to detect shader file modifications
+    void reloadShader(const std::string& name);  // Manually reload a specific shader
+    
     // Statistics
     size_t getTotalVariantCount() const;
     size_t getCachedBinarySize() const;
@@ -345,6 +351,11 @@ private:
     bool m_binaryCacheEnabled;
     std::string m_binaryCachePath;
     std::unordered_map<size_t, std::vector<uint8_t>> m_binaryCache;
+    
+    // Hot-reload tracking
+    bool m_hotReloadEnabled;
+    std::unordered_map<std::string, std::time_t> m_fileModificationTimes;
+    std::time_t getFileModificationTime(const std::string& filePath) const;
 };
 
 // =============================================================================
