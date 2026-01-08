@@ -417,6 +417,53 @@ private:
     size_t alignOffset(size_t offset, size_t alignment) const;
 };
 
+/**
+ * @brief Component-optimized memory pool with fixed-size blocks
+ * Designed for ECS component allocation with minimal fragmentation
+ */
+class ComponentPool {
+public:
+    ComponentPool(size_t componentSize, size_t componentsPerBlock = 256);
+    ~ComponentPool();
+    
+    void* allocateComponent();
+    void deallocateComponent(void* component);
+    
+    // Bulk operations for efficient batch processing
+    void* allocateBatch(size_t count, std::vector<void*>& outPointers);
+    void deallocateBatch(const std::vector<void*>& pointers);
+    
+    // Defragmentation for improved cache coherency
+    void compact();
+    void* getComponentAtIndex(size_t index) const;
+    size_t getComponentIndex(void* component) const;
+    
+    // Statistics
+    size_t getComponentSize() const { return m_componentSize; }
+    size_t getAllocatedCount() const { return m_allocatedCount; }
+    size_t getCapacity() const { return m_capacity; }
+    float getFragmentation() const;
+    
+private:
+    size_t m_componentSize;
+    size_t m_componentsPerBlock;
+    size_t m_capacity;
+    std::atomic<size_t> m_allocatedCount;
+    
+    struct Block {
+        void* memory;
+        std::bitset<256> allocationBitmap;
+        size_t freeCount;
+    };
+    
+    std::vector<Block> m_blocks;
+    std::vector<size_t> m_freeBlockIndices;
+    mutable std::mutex m_mutex;
+    
+    void allocateNewBlock();
+    size_t findFreeSlotInBlock(Block& block);
+};
+
 class ObjectPool {
 private:
     struct ObjectNode {
