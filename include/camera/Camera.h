@@ -226,6 +226,9 @@ public:
     // Shake presets
     void registerShakePreset(const std::string& name, const CameraShakePreset& preset);
     void shake(const std::string& presetName);
+    bool hasShakePreset(const std::string& name) const;
+    void loadDefaultShakePresets();  // Load built-in presets (explosion, earthquake, rumble, etc.)
+    CameraShakePreset getShakePreset(const std::string& name) const;
     
     // Camera path
     void addPathPoint(const Math::Vector2D& position, float zoom, float rotation, float duration);
