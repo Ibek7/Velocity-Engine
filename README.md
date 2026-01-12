@@ -2,6 +2,8 @@
 
 A lightweight, modular 2D game engine built with C++ and SDL2, designed for creating games and interactive applications with high performance and flexibility.
 
+**Version**: 1.0.0 | **Last Updated**: January 2026
+
 ## Features
 
 ### Core Systems
