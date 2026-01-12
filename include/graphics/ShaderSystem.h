@@ -1,3 +1,10 @@
+/**
+ * @file ShaderSystem.h
+ * @brief Advanced shader management and variant system
+ * @version 1.0.0
+ * @date 2026-01-12
+ */
+
 #ifndef SHADER_SYSTEM_H
 #define SHADER_SYSTEM_H
 
