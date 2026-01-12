@@ -1,3 +1,9 @@
+/**
+ * @file main.cpp
+ * @brief JJM Game Engine - Demo Application
+ * @copyright 2026 JJM Game Engine
+ */
+
 #include "graphics/Renderer.h"
 #include "graphics/Color.h"
 #include "input/InputManager.h"
