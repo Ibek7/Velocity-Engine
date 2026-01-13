@@ -1089,14 +1089,28 @@ public:
     // Feature flags to defines
     std::unordered_map<std::string, std::string> featuresToDefines(ShaderFeatureSet features);
     
+    // Macro expansion with parameters
+    struct MacroDefinition {
+        std::string name;
+        std::vector<std::string> parameters;
+        std::string body;
+        bool hasParameters;
+    };
+    
+    void defineMacro(const MacroDefinition& macro);
+    void defineMacro(const std::string& name, const std::string& body);
+    void defineMacro(const std::string& name, const std::vector<std::string>& params, const std::string& body);
+    
 private:
     std::unordered_map<std::string, std::string> m_defines;
+    std::unordered_map<std::string, MacroDefinition> m_macros;
     static std::unordered_map<std::string, std::string> s_globalDefines;
     ShaderIncludeResolver* m_resolver{nullptr};
     
     std::string evaluateConditionals(const std::string& source);
     bool evaluateCondition(const std::string& condition);
     std::string expandMacros(const std::string& source);
+    std::string expandMacroCall(const std::string& name, const std::vector<std::string>& args);
 };
 
 // =============================================================================
