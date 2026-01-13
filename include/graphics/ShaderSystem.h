@@ -583,6 +583,10 @@ public:
     };
     CompileStats getStatistics() const;
     
+    // Profiling support
+    void enableProfiling(bool enable) { m_profilingEnabled = enable; }
+    bool isProfilingEnabled() const { return m_profilingEnabled; }
+    
 private:
     struct CompileJob {
         AsyncCompileRequest request;
@@ -596,6 +600,7 @@ private:
         std::function<void(bool, const ShaderCompileResult&)> callback;
     };
     
+    bool m_profilingEnabled{false};
     std::vector<std::thread> m_workers;
     std::priority_queue<CompileJob, std::vector<CompileJob>,
                         std::function<bool(const CompileJob&, const CompileJob&)>> m_queue;
@@ -896,6 +901,51 @@ public:
 private:
     static std::function<void(const std::string&)> s_debugCallback;
     static bool s_debugOutputEnabled;
+};
+
+/**
+ * @brief Shader performance profiler
+ */
+class ShaderProfiler {
+public:
+    struct ProfileEntry {
+        std::string shaderName;
+        float executionTimeMs;
+        size_t drawCalls;
+        size_t stateChanges;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+    
+    static ShaderProfiler& getInstance();
+    
+    // Profiling control
+    void beginFrame();
+    void endFrame();
+    void beginShader(const std::string& name);
+    void endShader();
+    
+    // Statistics
+    std::vector<ProfileEntry> getFrameProfile() const;
+    ProfileEntry getShaderStats(const std::string& name) const;
+    void clearHistory();
+    
+    // Configuration
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+    bool isEnabled() const { return m_enabled; }
+    void setMaxHistoryFrames(size_t frames) { m_maxHistoryFrames = frames; }
+    
+    // Export
+    std::string exportCSV() const;
+    std::string exportJSON() const;
+    
+private:
+    ShaderProfiler() = default;
+    bool m_enabled{false};
+    size_t m_maxHistoryFrames{60};
+    std::vector<std::vector<ProfileEntry>> m_history;
+    std::vector<ProfileEntry> m_currentFrame;
+    std::string m_currentShader;
+    std::chrono::steady_clock::time_point m_shaderStartTime;
 };
 
 // =============================================================================
