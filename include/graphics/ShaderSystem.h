@@ -1094,6 +1094,45 @@ private:
     std::string expandMacros(const std::string& source);
 };
 
+// =============================================================================
+// SHADER CACHE MANAGER
+// =============================================================================
+
+/**
+ * @brief Disk cache for compiled shader binaries
+ */
+class ShaderCacheManager {
+public:
+    static ShaderCacheManager& getInstance();
+    
+    // Cache operations
+    bool saveToCache(const std::string& shaderKey, const ShaderVariantKey& variantKey, 
+                     const std::vector<uint8_t>& binary);
+    bool loadFromCache(const std::string& shaderKey, const ShaderVariantKey& variantKey,
+                      std::vector<uint8_t>& outBinary);
+    
+    // Configuration
+    void setCacheDirectory(const std::string& path);
+    std::string getCacheDirectory() const { return m_cacheDir; }
+    void setMaxCacheSize(size_t sizeInMB);
+    void enableCompression(bool enable) { m_compressionEnabled = enable; }
+    
+    // Management
+    void clearCache();
+    void pruneCache();  // Remove old/unused entries
+    size_t getCacheSizeBytes() const;
+    size_t getCacheEntryCount() const;
+    
+private:
+    ShaderCacheManager() = default;
+    std::string m_cacheDir{".shader_cache"};
+    size_t m_maxCacheSizeMB{512};
+    bool m_compressionEnabled{true};
+    
+    std::string generateCacheKey(const std::string& shaderKey, const ShaderVariantKey& variantKey) const;
+    std::string getCacheFilePath(const std::string& cacheKey) const;
+};
+
 } // namespace Graphics
 } // namespace JJM
 
