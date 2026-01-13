@@ -739,6 +739,15 @@ public:
     static bool validateInterface(const ShaderReflection& vertexShader, const ShaderReflection& fragmentShader);
     static std::vector<std::string> findUnusedUniforms(const ShaderReflection& reflection,
                                                        const std::set<std::string>& usedUniforms);
+    
+    // Advanced reflection
+    static std::vector<std::string> extractDependencies(const std::string& source);
+    static std::unordered_map<std::string, std::string> extractDefines(const std::string& source);
+    static bool detectFeatureUsage(const std::string& source, ShaderFeature feature);
+    
+    // Generate metadata
+    static std::string generateReflectionJSON(const ShaderReflection& reflection);
+    static std::string generateUniformInterface(const ShaderReflection& reflection);
 };
 
 // =============================================================================
