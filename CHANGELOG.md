@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Project organization and documentation improvements
+- **Shader System Enhancements**:
+  - ShaderCacheManager for disk caching of compiled shader binaries with compression support
+  - Async compilation support integrated into hot-reload manager
+  - ShaderValidator for source code validation, deprecation detection, and performance hints
+  - Parameterized macro expansion in ShaderPreprocessor
+  - Uniform Buffer Object (UBO) support in ShaderVariant
+  - Variant compilation queue for background processing
+  - Advanced shader reflection with dependency extraction and metadata generation
+  - Circular dependency detection in ShaderIncludeResolver
+  - ShaderDebugger utilities for introspection and runtime debugging
+  - ShaderProfiler for performance tracking with CSV/JSON export
+  - ShaderLibrary.glsl with common math, lighting, tone mapping, and noise functions
+  - Material system with property management and serialization
+  - Shared memory and advanced features for ComputeShader
+  - ShaderStatistics tracker for compilation metrics and reporting
 
 ## [1.0.0] - 2026-01-12
 
