@@ -1104,6 +1104,44 @@ private:
 // =============================================================================
 
 /**
+ * @brief Shader validation rules and diagnostics
+ */
+class ShaderValidator {
+public:
+    enum class Severity {
+        Info,
+        Warning,
+        Error
+    };
+    
+    struct ValidationIssue {
+        Severity severity;
+        std::string message;
+        std::string file;
+        int line{-1};
+        std::string code;
+    };
+    
+    // Validation rules
+    bool validateSource(const std::string& source, std::vector<ValidationIssue>& issues);
+    bool validateUniformUsage(const std::string& source, const std::vector<std::string>& uniforms, 
+                             std::vector<ValidationIssue>& issues);
+    bool checkDeprecatedFunctions(const std::string& source, std::vector<ValidationIssue>& issues);
+    bool validateGLSLVersion(const std::string& source, int minVersion, std::vector<ValidationIssue>& issues);
+    
+    // Performance hints
+    bool checkPerformanceHints(const std::string& source, std::vector<ValidationIssue>& issues);
+    
+    // Configuration
+    void setStrictMode(bool strict) { m_strictMode = strict; }
+    void setTargetVersion(int version) { m_targetVersion = version; }
+    
+private:
+    bool m_strictMode{false};
+    int m_targetVersion{450};  // GLSL 4.5 by default
+};
+
+/**
  * @brief Disk cache for compiled shader binaries
  */
 class ShaderCacheManager {
