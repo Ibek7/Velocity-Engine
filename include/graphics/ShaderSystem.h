@@ -335,6 +335,17 @@ public:
     void setGlobalFeatures(ShaderFeatureSet features);
     ShaderFeatureSet getGlobalFeatures() const { return m_globalFeatures; }
     
+    // Variant compilation queue for background compilation
+    struct VariantCompileRequest {
+        std::string shaderName;
+        ShaderVariantKey variantKey;
+        int priority{0};
+    };
+    void queueVariantCompilation(const VariantCompileRequest& request);
+    void queueVariantCompilations(const std::vector<VariantCompileRequest>& requests);
+    size_t getPendingVariantCount() const;
+    void processPendingVariants(int maxPerFrame = 1);
+    
     // Include system
     ShaderIncludeResolver& getIncludeResolver() { return m_includeResolver; }
     
