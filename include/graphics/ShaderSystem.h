@@ -488,6 +488,11 @@ private:
     bool reloadShader(const std::string& name, WatchedShader& watched);
     std::chrono::steady_clock::time_point getFileModTime(const std::string& path);
     std::vector<std::string> findAffectedShaders(const std::string& changedFile);
+    
+    // Async compilation support for hot-reload
+    void reloadAsync(const std::string& name);
+    AsyncShaderCompiler* m_asyncCompiler{nullptr};
+    bool m_asyncEnabled{false};
 };
 
 // =============================================================================
