@@ -150,6 +150,9 @@ private:
     // Cached uniform locations
     std::unordered_map<std::string, int> m_uniformCache;
     
+    // Uniform buffer object support
+    std::unordered_map<std::string, unsigned int> m_uniformBlockCache;
+    
 public:
     ShaderVariant(const ShaderVariantKey& key);
     ~ShaderVariant();
@@ -163,6 +166,9 @@ public:
     void unuse() const;
     
     int getUniformLocation(const std::string& name);
+    unsigned int getUniformBlockIndex(const std::string& name);
+    void bindUniformBlock(const std::string& name, unsigned int bindingPoint);
+    
     void setUniform(const std::string& name, int value);
     void setUniform(const std::string& name, float value);
     void setUniform(const std::string& name, float x, float y);
