@@ -1325,6 +1325,56 @@ private:
     std::string getCacheFilePath(const std::string& cacheKey) const;
 };
 
+/**
+ * @brief Shader compilation statistics tracker
+ */
+class ShaderStatistics {
+public:
+    struct CompilationStats {
+        size_t totalCompilations{0};
+        size_t successfulCompilations{0};
+        size_t failedCompilations{0};
+        size_t cacheHits{0};
+        size_t cacheMisses{0};
+        float totalCompileTimeMs{0.0f};
+        float averageCompileTimeMs{0.0f};
+        float maxCompileTimeMs{0.0f};
+        float minCompileTimeMs{FLT_MAX};
+        size_t totalBinarySize{0};
+        size_t activeShaders{0};
+        size_t activeVariants{0};
+    };
+    
+    static ShaderStatistics& getInstance();
+    
+    // Recording
+    void recordCompilation(const std::string& shaderName, float timeMs, bool success, size_t binarySize = 0);
+    void recordCacheHit(const std::string& shaderName);
+    void recordCacheMiss(const std::string& shaderName);
+    void recordShaderCreation(const std::string& shaderName);
+    void recordShaderDestruction(const std::string& shaderName);
+    void recordVariantCreation(const std::string& shaderName, const ShaderVariantKey& key);
+    void recordVariantDestruction(const std::string& shaderName, const ShaderVariantKey& key);
+    
+    // Queries
+    CompilationStats getGlobalStats() const { return m_globalStats; }
+    CompilationStats getShaderStats(const std::string& shaderName) const;
+    std::vector<std::string> getTopCompiledShaders(size_t count = 10) const;
+    
+    // Management
+    void reset();
+    void resetShader(const std::string& shaderName);
+    
+    // Export
+    std::string exportReport() const;
+    std::string exportJSON() const;
+    
+private:
+    ShaderStatistics() = default;
+    CompilationStats m_globalStats;
+    std::unordered_map<std::string, CompilationStats> m_perShaderStats;
+};
+
 } // namespace Graphics
 } // namespace JJM
 
