@@ -863,6 +863,42 @@ private:
 };
 
 // =============================================================================
+// SHADER DEBUGGING
+// =============================================================================
+
+/**
+ * @brief Shader debugging utilities
+ */
+class ShaderDebugger {
+public:
+    // Shader introspection
+    static void printShaderInfo(unsigned int program);
+    static void printUniformInfo(unsigned int program);
+    static void printAttributeInfo(unsigned int program);
+    
+    // Source code debugging
+    static std::string addLineNumbers(const std::string& source);
+    static void savePreprocessedSource(const std::string& source, const std::string& path);
+    
+    // Runtime debugging
+    static void captureShaderState(unsigned int program, const std::string& outputPath);
+    static bool verifyShaderCompilation(unsigned int shader, std::string& error);
+    static bool verifyProgramLinking(unsigned int program, std::string& error);
+    
+    // Performance markers
+    static void beginShaderProfile(const std::string& name);
+    static void endShaderProfile();
+    
+    // Debug output
+    static void enableDebugOutput(bool enable);
+    static void setDebugCallback(std::function<void(const std::string&)> callback);
+    
+private:
+    static std::function<void(const std::string&)> s_debugCallback;
+    static bool s_debugOutputEnabled;
+};
+
+// =============================================================================
 // PIPELINE STATE OBJECTS
 // =============================================================================
 
