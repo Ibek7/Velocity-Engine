@@ -283,6 +283,14 @@ private:
     std::vector<std::string> m_includePaths;
     std::unordered_map<std::string, std::string> m_includeCache;
     
+    // Circular dependency detection
+    struct IncludeGraph {
+        std::unordered_map<std::string, std::vector<std::string>> dependencies;
+        bool detectCircularDependency(const std::string& file, std::set<std::string>& visited, 
+                                     std::set<std::string>& recursionStack) const;
+    };
+    IncludeGraph m_includeGraph;
+    
 public:
     void addIncludePath(const std::string& path);
     void removeIncludePath(const std::string& path);
@@ -290,6 +298,10 @@ public:
     
     std::string resolve(const std::string& source, int maxDepth = 10);
     void clearCache();
+    
+    // Dependency analysis
+    bool hasCircularDependency(const std::string& filePath);
+    std::vector<std::string> getDependencies(const std::string& filePath);
     
 private:
     std::string loadInclude(const std::string& name);
