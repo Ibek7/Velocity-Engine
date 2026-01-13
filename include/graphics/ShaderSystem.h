@@ -851,6 +851,12 @@ public:
     bool isValid() const { return m_program != 0; }
     const ShaderReflection& getReflection() const { return m_reflection; }
     void getWorkGroupSize(int& x, int& y, int& z) const;
+    void getSharedMemorySize(size_t& size) const;
+    
+    // Advanced features
+    void setLocalSize(int x, int y = 1, int z = 1);
+    void setSharedMemorySize(size_t size);
+    bool supportsSubgroups() const;
     
     // Source
     const std::string& getSource() const { return m_source; }
@@ -863,6 +869,11 @@ private:
     std::string m_path;
     ShaderReflection m_reflection;
     std::unordered_map<std::string, int> m_uniformCache;
+    
+    int m_localSizeX{1};
+    int m_localSizeY{1};
+    int m_localSizeZ{1};
+    size_t m_sharedMemorySize{0};
     
     int getUniformLocation(const std::string& name);
 };
