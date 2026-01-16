@@ -71,29 +71,147 @@ public:
     static AudioManager* getInstance();
     static void destroy();
     
+    // =========================================================================
     // Initialization
+    // =========================================================================
+    
+    /**
+     * @brief Initialize the audio system with specified parameters
+     * @param frequency Sample rate in Hz (default: 44100)
+     * @param format Audio format (default: MIX_DEFAULT_FORMAT for 16-bit stereo)
+     * @param channels Number of output channels: 1=mono, 2=stereo (default: 2)
+     * @param chunksize Audio buffer size in bytes (default: 2048)
+     * @return true if initialization succeeded, false otherwise
+     * @note Must be called before any other audio operations
+     * @note Smaller chunksize reduces latency but increases CPU usage
+     */
     bool initialize(int frequency = 44100, Uint16 format = MIX_DEFAULT_FORMAT,
                    int channels = 2, int chunksize = 2048);
+    
+    /**
+     * @brief Shutdown the audio system and free all resources
+     * @note Automatically called by destructor
+     */
     void shutdown();
     
-    // Update (call each frame for fades)
+    // =========================================================================
+    // Update
+    // =========================================================================
+    
+    /**
+     * @brief Update audio system for fade operations
+     * @param deltaTime Time elapsed since last frame in seconds
+     * @note Must be called each frame to process active fades
+     */
     void update(float deltaTime);
     
-    // Music control
+    // =========================================================================
+    // Music Control
+    // =========================================================================
+    
+    /**
+     * @brief Load a music track from file
+     * @param name Unique identifier for this music track
+     * @param filePath Path to audio file (supports MP3, OGG, WAV, FLAC, etc.)
+     * @return true if loading succeeded, false otherwise
+     * @note Music is streamed from disk, not loaded into memory entirely
+     * @note Can reload existing tracks to update them
+     */
     bool loadMusic(const std::string& name, const std::string& filePath);
+    
+    /**
+     * @brief Play a loaded music track
+     * @param name Name of the music track to play
+     * @param loops Number of times to loop (-1 for infinite loop)
+     * @note Stops any currently playing music
+     * @note Use fadeInMusic() for smoother transitions
+     */
     void playMusic(const std::string& name, int loops = -1);
+    
+    /**
+     * @brief Pause the currently playing music
+     * @note Use resumeMusic() to continue playback
+     * @see resumeMusic
+     */
     void pauseMusic();
+    
+    /**
+     * @brief Resume paused music playback
+     * @note Only works if music was previously paused
+     * @see pauseMusic
+     */
     void resumeMusic();
+    
+    /**
+     * @brief Stop the currently playing music immediately
+     * @note To fade out smoothly, use fadeOutMusic() instead
+     * @see fadeOutMusic
+     */
     void stopMusic();
+    
+    /**
+     * @brief Set music volume
+     * @param volume Volume level (0-128, where 128 is maximum)
+     * @note Applies to all music playback
+     * @note Affected by master volume setting
+     */
     void setMusicVolume(int volume); // 0-128
+    
+    /**
+     * @brief Check if music is currently playing
+     * @return true if music is playing, false if stopped or paused
+     */
     bool isMusicPlaying() const;
+    
+    /**
+     * @brief Check if music is paused
+     * @return true if music is paused, false otherwise
+     */
     bool isMusicPaused() const { return musicPaused; }
+    
+    /**
+     * @brief Get the name of currently playing music track
+     * @return Name of current track, or empty string if none playing
+     */
     const std::string& getCurrentMusicTrack() const { return currentMusicTrack; }
     
-    // Music fade transitions
+    // =========================================================================
+    // Music Fade Transitions
+    // =========================================================================
+    
+    /**
+     * @brief Fade in music from silence over specified duration
+     * @param name Name of music track to play
+     * @param duration Fade duration in seconds
+     * @param loops Number of times to loop (-1 for infinite)
+     * @note Smoothly increases volume from 0 to current music volume
+     */
     void fadeInMusic(const std::string& name, float duration, int loops = -1);
+    
+    /**
+     * @brief Fade out currently playing music over specified duration
+     * @param duration Fade duration in seconds
+     * @param onComplete Optional callback to invoke when fade completes
+     * @note Music is stopped automatically after fade completes
+     */
     void fadeOutMusic(float duration, std::function<void()> onComplete = nullptr);
+    
+    /**
+     * @brief Crossfade from current music to new track
+     * @param name Name of music track to transition to
+     * @param duration Crossfade duration in seconds
+     * @param loops Number of times to loop new track (-1 for infinite)
+     * @note Fades out current track while fading in new track simultaneously
+     */
     void crossfadeMusic(const std::string& name, float duration, int loops = -1);
+    
+    /**
+     * @brief Fade music to specific volume level
+     * @param targetVolume Target volume (0-128)
+     * @param duration Fade duration in seconds
+     * @param type Fade curve type (Linear, EaseIn, EaseOut, EaseInOut)
+     * @note Does not affect base music volume setting
+     */
     void fadeToVolume(int targetVolume, float duration, FadeType type = FadeType::Linear);
     
     // Sound effects
