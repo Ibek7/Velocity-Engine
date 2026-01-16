@@ -113,8 +113,14 @@ struct ShaderError {
     std::string message;
     std::string sourceLine;
     std::string severity;  // "error", "warning", "info"
+    std::string file;      // Source file name for includes
     
     ShaderError() : lineNumber(-1), columnNumber(-1), severity("error") {}
+    
+    /**
+     * @brief Check if error is valid
+     */
+    bool isValid() const { return lineNumber >= 0 && !message.empty(); }
 };
 
 /**
@@ -134,6 +140,21 @@ struct ShaderCompileResult {
      * @brief Get formatted error report with line numbers and context
      */
     std::string getFormattedErrors() const;
+    
+    /**
+     * @brief Check if result has any warnings
+     */
+    bool hasWarnings() const { return !warnings.empty(); }
+    
+    /**
+     * @brief Get total error count
+     */
+    size_t getErrorCount() const { return detailedErrors.size(); }
+    
+    /**
+     * @brief Validate shader compilation result
+     */
+    bool validate() const { return success && detailedErrors.empty(); }
 };
 
 /**
