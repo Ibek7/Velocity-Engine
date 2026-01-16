@@ -44,6 +44,11 @@ private:
     Graphics::Color startColor, endColor;
     Math::Vector2D gravity;
     
+    // Performance optimizations
+    bool m_useBatchRendering;
+    bool m_useObjectPooling;
+    std::vector<int> m_freeList;  // Indices of inactive particles for reuse
+    
 public:
     ParticleEmitter(const Math::Vector2D& pos, int maxParticles = 100);
     
@@ -66,6 +71,13 @@ public:
     void setColorRange(const Graphics::Color& start, const Graphics::Color& end);
     void setGravity(const Math::Vector2D& g) { gravity = g; }
     
+    // Performance optimizations
+    void setBatchRendering(bool enable) { m_useBatchRendering = enable; }
+    bool isBatchRenderingEnabled() const { return m_useBatchRendering; }
+    void setObjectPooling(bool enable) { m_useObjectPooling = enable; }
+    bool isObjectPoolingEnabled() const { return m_useObjectPooling; }
+    void preallocateParticles(int count);
+    
     // Getters
     bool isActive() const { return active; }
     int getActiveParticleCount() const;
@@ -74,6 +86,10 @@ public:
 private:
     void createParticle();
     float randomFloat(float min, float max);
+    int allocateParticle();  // Returns index of free particle or -1
+    void releaseParticle(int index);  // Mark particle as free for reuse
+    void renderBatched(Graphics::Renderer* renderer);
+    void renderIndividual(Graphics::Renderer* renderer);
 };
 
 class ParticleSystem {
