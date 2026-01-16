@@ -92,6 +92,39 @@ public:
     void drawVelocity(const Math::Vector2D& position, const Math::Vector2D& velocity,
                      const Graphics::Color& color = Graphics::Color(0, 0, 255));
     
+    // Collision debug helpers
+    void drawCollisionNormal(const Math::Vector2D& point, const Math::Vector2D& normal,
+                            const Graphics::Color& color = Graphics::Color(255, 255, 0),
+                            float length = 20.0f, float duration = 0.0f);
+    
+    void drawCollisionPoint(const Math::Vector2D& point,
+                           const Graphics::Color& color = Graphics::Color(255, 0, 255),
+                           float radius = 5.0f, float duration = 0.0f);
+    
+    void drawContactManifold(const Math::Vector2D& point1, const Math::Vector2D& point2,
+                            const Math::Vector2D& normal, float penetration,
+                            const Graphics::Color& color = Graphics::Color(255, 128, 0),
+                            float duration = 0.0f);
+    
+    // Physics body visualization
+    void drawRigidbody(const Math::Vector2D& position, const Math::Vector2D& velocity,
+                      const Math::Vector2D& force, float mass,
+                      const Graphics::Color& color = Graphics::Color(0, 255, 255),
+                      float duration = 0.0f);
+    
+    void drawBounds(const Math::Vector2D& center, const Math::Vector2D& extents,
+                   float rotation = 0.0f,
+                   const Graphics::Color& color = Graphics::Color(255, 255, 0),
+                   float duration = 0.0f);
+    
+    // Transform visualization
+    void drawTransform(const Math::Vector2D& position, float rotation, float scale = 1.0f,
+                      float axisLength = 50.0f, float duration = 0.0f);
+    
+    void drawBasis(const Math::Vector2D& origin, const Math::Vector2D& xAxis,
+                  const Math::Vector2D& yAxis, float length = 50.0f,
+                  float duration = 0.0f);
+    
     // Update and render
     void update(float deltaTime);
     void render();
