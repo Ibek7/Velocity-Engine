@@ -1,31 +1,72 @@
 # JJM Game Engine
 
-A lightweight, modular 2D game engine built with C++ and SDL2, designed for creating games and interactive applications with high performance and flexibility.
+A high-performance, modular game engine built with modern C++ and advanced graphics features, designed for creating 2D/3D games and interactive applications with professional-grade rendering capabilities.
 
-**Version**: 1.0.0 | **Last Updated**: January 2026
+**Version**: 1.0.0 | **Last Updated**: January 16, 2026
 
 ## Features
 
 ### Core Systems
-- **Math Library**: Complete 2D vector and matrix operations with transformation support
-- **Rendering System**: Hardware-accelerated 2D rendering with SDL2
-- **Entity Component System (ECS)**: Flexible architecture for game objects
-- **Physics Engine**: 2D physics with collision detection and response
-- **Input Management**: Keyboard and mouse input handling with event system
-- **Resource Management**: Efficient loading and management of textures and assets
+- **Math Library**: Complete 2D/3D vector and matrix operations with interpolation utilities
+- **Advanced Rendering**: Hardware-accelerated rendering with shader system and PBR materials
+- **Entity Component System (ECS)**: Memory-optimized architecture with component pooling
+- **Physics Engine**: 2D physics with collision detection, response, and debug visualization
+- **Input Management**: Keyboard, mouse, and gamepad support with action mapping
+- **Resource Management**: Async loading with progress tracking and memory management
+
+### Graphics & Rendering
+- **Shader System**: Advanced shader management with variants and hot-reloading
+- **PBR Materials**: Physically-based rendering with metallic-roughness workflow
+- **Shadow Mapping**: Cascaded shadow maps for high-quality shadows
+- **Post-Processing**: HDR, bloom, depth of field, motion blur, and more
+- **GPU Instancing**: Efficient batch rendering for thousands of objects
+- **Texture Streaming**: Dynamic texture loading for optimal memory usage
+- **Terrain System**: LOD-based terrain with procedural generation
+- **Framebuffer Management**: Multi-target rendering and render passes
 
 ### Advanced Features
-- **Scene Management**: Easy scene switching and state management
-- **Audio System**: Music playback and sound effects with SDL_mixer
-- **Particle System**: Customizable particle emitters for visual effects
-- **Animation System**: Sprite animation and tweening with 20+ easing functions
-- **UI Framework**: Buttons, labels, panels, sliders, and checkboxes
-- **Camera System**: 2D camera with follow, zoom, rotation, shake, and bounds
-- **Tilemap Support**: Tile-based level design and rendering
-- **Event System**: Global event dispatcher for decoupled communication
-- **Debug Tools**: Profiler, logger, FPS counter, and debug rendering
-- **State Machine**: Game state management (Menu, Game, Pause, GameOver)
-- **Configuration**: File-based configuration system
+- **Scene Management**: Hierarchical scene graph with serialization
+- **Audio System**: 3D spatial audio with effects, mixing, and fade transitions
+- **Particle System**: GPU-accelerated particles with sub-emitters and pooling
+- **Animation System**: Skeletal animation, IK, and state machines
+- **UI Framework**: Comprehensive widget library with customizable themes
+- **Camera System**: Advanced camera with effects, cinematics, and smoothing
+- **Tilemap Support**: Efficient tile rendering with culling
+- **Event System**: Type-safe event dispatcher with priority queues
+- **Debug Tools**: Profiler, logger, visualization, console, and memory tracking
+- **Networking**: Multi-threaded client-server with compression
+- **Scripting**: Lua integration for rapid prototyping
+- **Serialization**: Binary and JSON serialization helpers
+
+## Architecture
+
+### Component-Based Design
+The engine uses a modern Entity Component System (ECS) architecture for maximum flexibility and performance. Components are stored in contiguous memory pools for cache efficiency, and systems process entities in parallel when possible.
+
+### Rendering Pipeline
+```
+Scene → Culling → Batching → Shaders → Post-Processing → Present
+```
+
+The rendering system supports:
+- Deferred and forward rendering
+- Multi-pass rendering with framebuffers
+- Shader variants for different quality levels
+- Automatic batching and instancing
+
+### Memory Management
+- Component memory pooling with free lists
+- Async resource loading with streaming
+- LRU cache eviction for textures
+- Configurable memory limits
+
+### Performance Optimizations
+- Spatial partitioning for culling
+- Thread pool for background tasks
+- SIMD math operations where available
+- Zero-copy data sharing between systems
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Requirements
 
