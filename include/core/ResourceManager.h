@@ -30,9 +30,38 @@ struct LoadRequest {
     std::string filePath;
     LoadPriority priority;
     std::function<void(bool)> callback;
+    std::function<void(float)> progressCallback;  // Progress 0.0-1.0
+    size_t estimatedSize;  // Estimated file size for progress tracking
+    
+    LoadRequest() : priority(LoadPriority::Normal), estimatedSize(0) {}
     
     bool operator<(const LoadRequest& other) const {
         return static_cast<int>(priority) < static_cast<int>(other.priority);
+    }
+};
+
+// Resource loading progress tracker
+struct LoadProgress {
+    size_t totalItems;
+    size_t loadedItems;
+    size_t failedItems;
+    size_t totalBytes;
+    size_t loadedBytes;
+    float percentage;
+    std::string currentItem;
+    bool isComplete;
+    
+    LoadProgress()
+        : totalItems(0), loadedItems(0), failedItems(0)
+        , totalBytes(0), loadedBytes(0), percentage(0.0f)
+        , isComplete(false)
+    {}
+    
+    void update() {
+        if (totalItems > 0) {
+            percentage = static_cast<float>(loadedItems) / totalItems;
+        }
+        isComplete = (loadedItems + failedItems) >= totalItems;
     }
 };
 
@@ -69,6 +98,10 @@ private:
     // Resource limits
     size_t maxMemoryLimit;
     
+    // Progress tracking
+    mutable std::mutex m_progressMutex;
+    LoadProgress m_currentProgress;
+    
     ResourceManager();
 
 public:
@@ -103,6 +136,15 @@ public:
     // Batch loading
     void loadBatch(const std::vector<std::pair<std::string, std::string>>& resources,
                    std::function<void(size_t loaded, size_t total)> progressCallback = nullptr);
+    
+    // Async batch loading with detailed progress
+    void loadBatchAsync(const std::vector<std::pair<std::string, std::string>>& resources,
+                       std::function<void(const LoadProgress&)> progressCallback = nullptr,
+                       std::function<void(bool success)> completionCallback = nullptr);
+    
+    // Progress tracking
+    LoadProgress getCurrentProgress() const;
+    bool isLoadInProgress() const { return !m_currentProgress.isComplete; }
     
     // Resource queries
     bool hasTexture(const std::string& id) const;
