@@ -266,6 +266,29 @@ public:
      */
     bool isRoomVisible(int roomId) const;
     
+    // Temporal coherence
+    /**
+     * @brief Update coherence data for an entity
+     * @param entityId Entity identifier
+     * @param isVisible Current visibility state
+     * @param distance Distance from camera
+     * 
+     * Tracks visibility history to optimize future culling tests
+     */
+    void updateCoherenceData(int entityId, bool isVisible, float distance);
+    
+    /**
+     * @brief Get predicted visibility based on temporal coherence
+     * @param entityId Entity identifier
+     * @return Probability of visibility (0.0-1.0)
+     */
+    float getPredictedVisibility(int entityId) const;
+    
+    /**
+     * @brief Clear all temporal coherence data
+     */
+    void clearCoherenceData();
+    
     // Statistics
     /**
      * @struct CullingStats
@@ -370,6 +393,16 @@ private:
     std::vector<Portal> m_portals;
     std::vector<bool> m_visibleRooms;
     int m_currentRoom;
+    
+    // Temporal coherence tracking
+    struct ObjectCoherenceData {
+        int entityId;
+        bool wasVisibleLastFrame;
+        int consecutiveVisibleFrames;
+        int consecutiveOccludedFrames;
+        float lastTestedDistance;
+    };
+    std::vector<ObjectCoherenceData> m_coherenceData;
     
     CullingStats m_stats;
 };

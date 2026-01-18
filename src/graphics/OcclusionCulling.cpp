@@ -264,6 +264,58 @@ void OcclusionCuller::update(float deltaTime) {
     updateQueries();
 }
 
+void OcclusionCuller::updateCoherenceData(int entityId, bool isVisible, float distance) {
+    // Find existing coherence data
+    ObjectCoherenceData* data = nullptr;
+    for (auto& cd : m_coherenceData) {
+        if (cd.entityId == entityId) {
+            data = &cd;
+            break;
+        }
+    }
+    
+    // Create new entry if not found
+    if (!data) {
+        m_coherenceData.push_back({entityId, isVisible, 0, 0, distance});
+        return;
+    }
+    
+    // Update consecutive frame counters
+    if (isVisible) {
+        data->consecutiveVisibleFrames++;
+        data->consecutiveOccludedFrames = 0;
+    } else {
+        data->consecutiveVisibleFrames = 0;
+        data->consecutiveOccludedFrames++;
+    }
+    
+    data->wasVisibleLastFrame = isVisible;
+    data->lastTestedDistance = distance;
+}
+
+float OcclusionCuller::getPredictedVisibility(int entityId) const {
+    for (const auto& cd : m_coherenceData) {
+        if (cd.entityId == entityId) {
+            // Strong temporal coherence - objects tend to remain in same state
+            if (cd.consecutiveVisibleFrames > 5) {
+                return 0.9f; // Likely visible
+            } else if (cd.consecutiveOccludedFrames > 5) {
+                return 0.1f; // Likely occluded
+            } else if (cd.wasVisibleLastFrame) {
+                return 0.6f; // Probably visible
+            } else {
+                return 0.4f; // Probably occluded
+            }
+        }
+    }
+    
+    return 0.5f; // No history, 50/50 chance
+}
+
+void OcclusionCuller::clearCoherenceData() {
+    m_coherenceData.clear();
+}
+
 void OcclusionCuller::getDebugVisualization(DebugVisualizationData& data, bool includePortals, bool includeCulled) const {
     data.frustumPlaneVertices.clear();
     data.culledBoundsVertices.clear();
