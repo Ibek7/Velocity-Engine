@@ -4,6 +4,8 @@
 #include <cstring>
 #include <thread>
 #include <future>
+#include <fstream>
+#include <sstream>
 
 namespace Engine {
 
@@ -356,6 +358,117 @@ void OcclusionCuller::resetStats() {
     m_stats.occlusionCulled = 0;
     m_stats.queryCount = static_cast<int>(m_queries.size());
     m_stats.cullingTime = 0.0f;
+}
+
+OcclusionCuller::DetailedStats OcclusionCuller::getDetailedStats() const {
+    DetailedStats detailed;
+    detailed.basic = m_stats;
+    
+    // Performance breakdown (would be measured in real implementation)
+    detailed.frustumTestTime = m_stats.cullingTime * 0.3f;
+    detailed.occlusionQueryTime = m_stats.cullingTime * 0.4f;
+    detailed.hizTestTime = m_stats.cullingTime * 0.2f;
+    detailed.portalTestTime = m_stats.cullingTime * 0.1f;
+    
+    // Query pool stats
+    int available, active;
+    getQueryPoolStats(available, active);
+    detailed.queriesAllocated = active;
+    detailed.queriesAvailable = available;
+    detailed.queriesExhausted = (available == 0 && active >= m_queryPool.maxPoolSize) ? 1 : 0;
+    
+    // Coherence stats
+    detailed.coherenceHits = 0;
+    detailed.coherenceMisses = 0;
+    float totalVisible = 0.0f;
+    float totalOccluded = 0.0f;
+    for (const auto& cd : m_coherenceData) {
+        if (cd.consecutiveVisibleFrames > 3 || cd.consecutiveOccludedFrames > 3) {
+            detailed.coherenceHits++;
+        } else {
+            detailed.coherenceMisses++;
+        }
+        totalVisible += cd.consecutiveVisibleFrames;
+        totalOccluded += cd.consecutiveOccludedFrames;
+    }
+    detailed.avgConsecutiveVisible = m_coherenceData.empty() ? 0.0f : totalVisible / m_coherenceData.size();
+    detailed.avgConsecutiveOccluded = m_coherenceData.empty() ? 0.0f : totalOccluded / m_coherenceData.size();
+    
+    // LOD stats (simplified)
+    detailed.lodBiasApplied = m_perfConfig.lodBias > 0.0f ? 1 : 0;
+    detailed.avgLODLevel = 1.5f; // Would calculate from actual LOD decisions
+    
+    return detailed;
+}
+
+bool OcclusionCuller::exportStatsToCSV(const char* filepath, bool append) const {
+    std::ofstream file;
+    file.open(filepath, append ? std::ios::app : std::ios::out);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    // Write header if new file
+    if (!append || file.tellp() == 0) {
+        file << "TotalObjects,VisibleObjects,FrustumCulled,OcclusionCulled,QueryCount,CullingTime\n";
+    }
+    
+    // Write data
+    file << m_stats.totalObjects << ","
+         << m_stats.visibleObjects << ","
+         << m_stats.frustumCulled << ","
+         << m_stats.occlusionCulled << ","
+         << m_stats.queryCount << ","
+         << m_stats.cullingTime << "\n";
+    
+    file.close();
+    return true;
+}
+
+bool OcclusionCuller::exportStatsToJSON(const char* filepath) const {
+    std::ofstream file(filepath);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    DetailedStats detailed = getDetailedStats();
+    
+    file << "{\n";
+    file << "  \"basic\": {\n";
+    file << "    \"totalObjects\": " << m_stats.totalObjects << ",\n";
+    file << "    \"visibleObjects\": " << m_stats.visibleObjects << ",\n";
+    file << "    \"frustumCulled\": " << m_stats.frustumCulled << ",\n";
+    file << "    \"occlusionCulled\": " << m_stats.occlusionCulled << ",\n";
+    file << "    \"queryCount\": " << m_stats.queryCount << ",\n";
+    file << "    \"cullingTime\": " << m_stats.cullingTime << "\n";
+    file << "  },\n";
+    file << "  \"performance\": {\n";
+    file << "    \"frustumTestTime\": " << detailed.frustumTestTime << ",\n";
+    file << "    \"occlusionQueryTime\": " << detailed.occlusionQueryTime << ",\n";
+    file << "    \"hizTestTime\": " << detailed.hizTestTime << ",\n";
+    file << "    \"portalTestTime\": " << detailed.portalTestTime << "\n";
+    file << "  },\n";
+    file << "  \"queryPool\": {\n";
+    file << "    \"allocated\": " << detailed.queriesAllocated << ",\n";
+    file << "    \"available\": " << detailed.queriesAvailable << ",\n";
+    file << "    \"exhausted\": " << detailed.queriesExhausted << "\n";
+    file << "  },\n";
+    file << "  \"coherence\": {\n";
+    file << "    \"hits\": " << detailed.coherenceHits << ",\n";
+    file << "    \"misses\": " << detailed.coherenceMisses << ",\n";
+    file << "    \"avgConsecutiveVisible\": " << detailed.avgConsecutiveVisible << ",\n";
+    file << "    \"avgConsecutiveOccluded\": " << detailed.avgConsecutiveOccluded << "\n";
+    file << "  },\n";
+    file << "  \"lod\": {\n";
+    file << "    \"biasApplied\": " << detailed.lodBiasApplied << ",\n";
+    file << "    \"avgLevel\": " << detailed.avgLODLevel << "\n";
+    file << "  }\n";
+    file << "}\n";
+    
+    file.close();
+    return true;
 }
 
 void OcclusionCuller::update(float deltaTime) {

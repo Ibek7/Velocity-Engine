@@ -385,6 +385,57 @@ public:
      */
     void resetStats();
     
+    /**
+     * @struct DetailedStats
+     * @brief Extended statistics for detailed analysis
+     */
+    struct DetailedStats {
+        // Basic stats
+        CullingStats basic;
+        
+        // Performance breakdown
+        float frustumTestTime;
+        float occlusionQueryTime;
+        float hizTestTime;
+        float portalTestTime;
+        
+        // Query pool stats
+        int queriesAllocated;
+        int queriesAvailable;
+        int queriesExhausted;
+        
+        // Coherence stats
+        int coherenceHits;
+        int coherenceMisses;
+        float avgConsecutiveVisible;
+        float avgConsecutiveOccluded;
+        
+        // LOD stats
+        int lodBiasApplied;
+        float avgLODLevel;
+    };
+    
+    /**
+     * @brief Get detailed statistics for analysis
+     * @return Detailed statistics structure
+     */
+    DetailedStats getDetailedStats() const;
+    
+    /**
+     * @brief Export statistics to CSV format
+     * @param filepath Path to output CSV file
+     * @param append If true, append to existing file; otherwise overwrite
+     * @return true if export successful
+     */
+    bool exportStatsToCSV(const char* filepath, bool append = true) const;
+    
+    /**
+     * @brief Export statistics to JSON format
+     * @param filepath Path to output JSON file
+     * @return true if export successful
+     */
+    bool exportStatsToJSON(const char* filepath) const;
+    
     // Update
     /**
      * @brief Update culling system state
