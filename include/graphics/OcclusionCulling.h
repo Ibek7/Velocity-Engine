@@ -146,6 +146,26 @@ public:
      */
     void updateQueries();
     
+    /**
+     * @brief Batch test multiple bounding boxes against frustum
+     * @param boxes Array of bounding boxes to test
+     * @param count Number of boxes in array
+     * @param results Output array of visibility results (true = visible)
+     * 
+     * More efficient than testing boxes individually when testing many objects
+     */
+    void batchTestFrustum(const BoundingBox* boxes, int count, bool* results) const;
+    
+    /**
+     * @brief Batch test multiple bounding spheres against frustum
+     * @param spheres Array of bounding spheres to test
+     * @param count Number of spheres in array
+     * @param results Output array of visibility results (true = visible)
+     * 
+     * More efficient than testing spheres individually when testing many objects
+     */
+    void batchTestFrustum(const BoundingSphere* spheres, int count, bool* results) const;
+    
     // Hierarchical Z-buffer
     /**
      * @brief Initialize hierarchical Z-buffer with given dimensions

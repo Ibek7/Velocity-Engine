@@ -233,6 +233,18 @@ bool OcclusionCuller::testFrustumSphere(const BoundingSphere& sphere) const {
     return true; // Sphere is at least partially inside frustum
 }
 
+void OcclusionCuller::batchTestFrustum(const BoundingBox* boxes, int count, bool* results) const {
+    for (int i = 0; i < count; ++i) {
+        results[i] = testFrustumBox(boxes[i]);
+    }
+}
+
+void OcclusionCuller::batchTestFrustum(const BoundingSphere* spheres, int count, bool* results) const {
+    for (int i = 0; i < count; ++i) {
+        results[i] = testFrustumSphere(spheres[i]);
+    }
+}
+
 void OcclusionCuller::generateHiZMipmap(int level) {
     if (level <= 0 || level >= m_hizLevels) {
         return;
