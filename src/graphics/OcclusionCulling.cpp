@@ -2,6 +2,8 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <thread>
+#include <future>
 
 namespace Engine {
 
@@ -408,6 +410,86 @@ void OcclusionCuller::batchTestFrustum(const BoundingBox* boxes, int count, bool
 void OcclusionCuller::batchTestFrustum(const BoundingSphere* spheres, int count, bool* results) const {
     for (int i = 0; i < count; ++i) {
         results[i] = testFrustumSphere(spheres[i]);
+    }
+}
+
+void OcclusionCuller::batchTestFrustumParallel(const BoundingBox* boxes, int count, bool* results, int numThreads) const {
+    if (count <= 0) {
+        return;
+    }
+    
+    // Determine thread count
+    if (numThreads <= 0) {
+        numThreads = static_cast<int>(std::thread::hardware_concurrency());
+        if (numThreads <= 0) numThreads = 4;
+    }
+    
+    // For small counts, use single-threaded version
+    if (count < 100 || numThreads == 1) {
+        batchTestFrustum(boxes, count, results);
+        return;
+    }
+    
+    // Divide work among threads
+    int itemsPerThread = (count + numThreads - 1) / numThreads;
+    std::vector<std::future<void>> futures;
+    
+    for (int t = 0; t < numThreads; ++t) {
+        int start = t * itemsPerThread;
+        int end = std::min(start + itemsPerThread, count);
+        
+        if (start >= count) break;
+        
+        futures.push_back(std::async(std::launch::async, [this, boxes, results, start, end]() {
+            for (int i = start; i < end; ++i) {
+                results[i] = testFrustumBox(boxes[i]);
+            }
+        }));
+    }
+    
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+        future.get();
+    }
+}
+
+void OcclusionCuller::batchTestFrustumParallel(const BoundingSphere* spheres, int count, bool* results, int numThreads) const {
+    if (count <= 0) {
+        return;
+    }
+    
+    // Determine thread count
+    if (numThreads <= 0) {
+        numThreads = static_cast<int>(std::thread::hardware_concurrency());
+        if (numThreads <= 0) numThreads = 4;
+    }
+    
+    // For small counts, use single-threaded version
+    if (count < 100 || numThreads == 1) {
+        batchTestFrustum(spheres, count, results);
+        return;
+    }
+    
+    // Divide work among threads
+    int itemsPerThread = (count + numThreads - 1) / numThreads;
+    std::vector<std::future<void>> futures;
+    
+    for (int t = 0; t < numThreads; ++t) {
+        int start = t * itemsPerThread;
+        int end = std::min(start + itemsPerThread, count);
+        
+        if (start >= count) break;
+        
+        futures.push_back(std::async(std::launch::async, [this, spheres, results, start, end]() {
+            for (int i = start; i < end; ++i) {
+                results[i] = testFrustumSphere(spheres[i]);
+            }
+        }));
+    }
+    
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+        future.get();
     }
 }
 

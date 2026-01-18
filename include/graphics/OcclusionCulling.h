@@ -200,6 +200,27 @@ public:
      */
     void batchTestFrustum(const BoundingSphere* spheres, int count, bool* results) const;
     
+    // Multi-threaded culling
+    /**
+     * @brief Batch test frustum culling with multi-threading support
+     * @param boxes Array of bounding boxes to test
+     * @param count Number of boxes in array
+     * @param results Output array of visibility results
+     * @param numThreads Number of worker threads (0 = auto-detect)
+     * 
+     * Divides work across multiple threads for large object counts
+     */
+    void batchTestFrustumParallel(const BoundingBox* boxes, int count, bool* results, int numThreads = 0) const;
+    
+    /**
+     * @brief Batch test spheres with multi-threading support
+     * @param spheres Array of bounding spheres to test
+     * @param count Number of spheres in array
+     * @param results Output array of visibility results
+     * @param numThreads Number of worker threads (0 = auto-detect)
+     */
+    void batchTestFrustumParallel(const BoundingSphere* spheres, int count, bool* results, int numThreads = 0) const;
+    
     // Hierarchical Z-buffer
     /**
      * @brief Initialize hierarchical Z-buffer with given dimensions
