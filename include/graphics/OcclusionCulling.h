@@ -97,6 +97,40 @@ public:
      */
     void setMinScreenSize(float size) { m_minScreenSize = size; }
     
+    /**
+     * @struct PerformanceConfig
+     * @brief Performance tuning configuration
+     */
+    struct PerformanceConfig {
+        bool enableEarlyOut;              ///< Exit frustum test after first failing plane
+        bool enableSIMD;                  ///< Use SIMD instructions for batch operations
+        bool enableTemporalCoherence;     ///< Use frame-to-frame coherence optimization
+        bool enableConservativeEstimation;///< Use fast heuristics before expensive tests
+        int maxQueriesPerFrame;           ///< Maximum GPU queries to issue per frame
+        float lodBias;                    ///< LOD bias factor (0.0 = no bias, 1.0 = aggressive)
+        
+        PerformanceConfig()
+            : enableEarlyOut(true)
+            , enableSIMD(true)
+            , enableTemporalCoherence(true)
+            , enableConservativeEstimation(true)
+            , maxQueriesPerFrame(256)
+            , lodBias(0.0f)
+        {}
+    };
+    
+    /**
+     * @brief Set performance configuration
+     * @param config Performance tuning settings
+     */
+    void setPerformanceConfig(const PerformanceConfig& config) { m_perfConfig = config; }
+    
+    /**
+     * @brief Get current performance configuration
+     * @return Reference to performance settings
+     */
+    const PerformanceConfig& getPerformanceConfig() const { return m_perfConfig; }
+    
     // Frustum
     /**
      * @brief Update frustum planes for culling tests
@@ -313,6 +347,7 @@ private:
     float getHistoricalOcclusionRate(int entityId) const;
 
     CullingMethod m_method;
+    PerformanceConfig m_perfConfig;
     
     // Frustum planes (6 planes: left, right, top, bottom, near, far)
     float m_frustumPlanes[6][4];
