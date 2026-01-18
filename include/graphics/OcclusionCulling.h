@@ -263,6 +263,44 @@ public:
      * @param deltaTime Time since last frame in seconds
      */
     void update(float deltaTime);
+    
+    // Debug visualization
+    /**
+     * @struct DebugVisualizationData
+     * @brief Data for debug rendering of culling information
+     */
+    struct DebugVisualizationData {
+        std::vector<float> frustumPlaneVertices;   ///< Vertices for frustum plane visualization
+        std::vector<float> culledBoundsVertices;   ///< Vertices for culled object bounds
+        std::vector<float> visibleBoundsVertices;  ///< Vertices for visible object bounds
+        std::vector<float> portalVertices;         ///< Vertices for portal visualization
+    };
+    
+    /**
+     * @brief Generate debug visualization data
+     * @param data Output structure to fill with visualization data
+     * @param includePortals Whether to include portal geometry
+     * @param includeCulled Whether to include culled objects
+     */
+    void getDebugVisualization(DebugVisualizationData& data, bool includePortals = true, bool includeCulled = true) const;
+    
+    /**
+     * @brief Draw debug frustum planes
+     * @param drawLineCallback Callback function to draw lines (from, to, color)
+     * 
+     * Visualizes the 6 frustum planes as colored wireframe quads
+     */
+    void debugDrawFrustum(std::function<void(const float[3], const float[3], const float[4])> drawLineCallback) const;
+    
+    /**
+     * @brief Draw debug bounding boxes for tested objects
+     * @param boxes Array of bounding boxes
+     * @param isVisible Array of visibility results
+     * @param count Number of boxes
+     * @param drawBoxCallback Callback function to draw boxes (min, max, color)
+     */
+    void debugDrawBounds(const BoundingBox* boxes, const bool* isVisible, int count,
+                         std::function<void(const float[3], const float[3], const float[4])> drawBoxCallback) const;
 
 private:
     bool testFrustumBox(const BoundingBox& box) const;

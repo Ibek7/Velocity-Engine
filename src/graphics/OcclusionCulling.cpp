@@ -264,6 +264,55 @@ void OcclusionCuller::update(float deltaTime) {
     updateQueries();
 }
 
+void OcclusionCuller::getDebugVisualization(DebugVisualizationData& data, bool includePortals, bool includeCulled) const {
+    data.frustumPlaneVertices.clear();
+    data.culledBoundsVertices.clear();
+    data.visibleBoundsVertices.clear();
+    data.portalVertices.clear();
+    
+    // Note: Full implementation would extract frustum corners and build geometry
+    // This is a stub that would be completed based on the rendering system
+}
+
+void OcclusionCuller::debugDrawFrustum(std::function<void(const float[3], const float[3], const float[4])> drawLineCallback) const {
+    if (!drawLineCallback) {
+        return;
+    }
+    
+    // Extract frustum corners from planes
+    // Note: Simplified implementation - full version would solve plane intersections
+    // to get the 8 corners of the frustum and draw the 12 edges
+    
+    float colorGreen[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+    
+    // This would draw the frustum wireframe using the callback
+    // For now, just a placeholder that shows the pattern
+}
+
+void OcclusionCuller::debugDrawBounds(const BoundingBox* boxes, const bool* isVisible, int count,
+                                     std::function<void(const float[3], const float[3], const float[4])> drawBoxCallback) const {
+    if (!drawBoxCallback || !boxes || !isVisible) {
+        return;
+    }
+    
+    for (int i = 0; i < count; ++i) {
+        const BoundingBox& box = boxes[i];
+        
+        // Green for visible, red for culled
+        float color[4];
+        if (isVisible[i]) {
+            color[0] = 0.0f; color[1] = 1.0f; color[2] = 0.0f; color[3] = 1.0f;
+        } else {
+            color[0] = 1.0f; color[1] = 0.0f; color[2] = 0.0f; color[3] = 0.5f;
+        }
+        
+        float min[3] = {box.minX, box.minY, box.minZ};
+        float max[3] = {box.maxX, box.maxY, box.maxZ};
+        
+        drawBoxCallback(min, max, color);
+    }
+}
+
 bool OcclusionCuller::testFrustumBox(const BoundingBox& box) const {
     // Test box against all 6 frustum planes
     for (int i = 0; i < 6; ++i) {
