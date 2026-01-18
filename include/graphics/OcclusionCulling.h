@@ -268,6 +268,30 @@ public:
      */
     bool testHiZ(const BoundingBox& box) const;
     
+    // LOD integration
+    /**
+     * @brief Calculate recommended LOD level based on occlusion and distance
+     * @param box Bounding box of the object
+     * @param cameraPos Camera position
+     * @param maxLOD Maximum LOD level available (0 = highest detail)
+     * @return Recommended LOD level (0 = highest, higher = lower detail)
+     * 
+     * Combines distance-based LOD with occlusion probability to select appropriate
+     * detail level. Objects that are partially occluded may use lower LOD to save performance.
+     */
+    int calculateLODLevel(const BoundingBox& box, const float cameraPos[3], int maxLOD = 4) const;
+    
+    /**
+     * @brief Calculate LOD bias multiplier based on occlusion probability
+     * @param box Bounding box of the object
+     * @param cameraPos Camera position
+     * @return LOD bias factor (1.0 = no bias, >1.0 = push toward lower detail)
+     * 
+     * Returns a multiplier that can be applied to distance-based LOD calculations
+     * to reduce detail for objects that are likely to be partially occluded.
+     */
+    float calculateLODBias(const BoundingBox& box, const float cameraPos[3]) const;
+    
     // Conservative occlusion estimation
     /**
      * @brief Estimate occlusion probability without expensive tests

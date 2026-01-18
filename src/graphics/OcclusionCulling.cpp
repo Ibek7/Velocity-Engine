@@ -266,6 +266,57 @@ float OcclusionCuller::estimateOcclusionProbability(const BoundingBox& box, cons
     return std::max(0.0f, std::min(1.0f, probability));
 }
 
+int OcclusionCuller::calculateLODLevel(const BoundingBox& box, const float cameraPos[3], int maxLOD) const {
+    if (maxLOD <= 0) return 0;
+    
+    // Calculate center and distance
+    float centerX = (box.minX + box.maxX) * 0.5f;
+    float centerY = (box.minY + box.maxY) * 0.5f;
+    float centerZ = (box.minZ + box.maxZ) * 0.5f;
+    
+    float dx = centerX - cameraPos[0];
+    float dy = centerY - cameraPos[1];
+    float dz = centerZ - cameraPos[2];
+    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    
+    // Base LOD calculation from distance
+    // Typical LOD distances: 0-20 = LOD0, 20-50 = LOD1, 50-100 = LOD2, etc.
+    float lodDistances[] = {20.0f, 50.0f, 100.0f, 200.0f, 400.0f};
+    int baseLOD = 0;
+    for (int i = 0; i < maxLOD && i < 5; ++i) {
+        if (distance > lodDistances[i]) {
+            baseLOD = i + 1;
+        }
+    }
+    baseLOD = std::min(baseLOD, maxLOD);
+    
+    // Apply occlusion bias
+    if (m_perfConfig.enableConservativeEstimation && m_perfConfig.lodBias > 0.0f) {
+        float occlusionProb = estimateOcclusionProbability(box, cameraPos);
+        
+        // If likely occluded, push toward lower detail
+        if (occlusionProb > 0.5f) {
+            int lodBiasAmount = static_cast<int>((occlusionProb - 0.5f) * 2.0f * m_perfConfig.lodBias * 2.0f);
+            baseLOD = std::min(baseLOD + lodBiasAmount, maxLOD);
+        }
+    }
+    
+    return baseLOD;
+}
+
+float OcclusionCuller::calculateLODBias(const BoundingBox& box, const float cameraPos[3]) const {
+    if (!m_perfConfig.enableConservativeEstimation || m_perfConfig.lodBias <= 0.0f) {
+        return 1.0f;
+    }
+    
+    float occlusionProb = estimateOcclusionProbability(box, cameraPos);
+    
+    // Bias increases with occlusion probability
+    // 0.0 probability = 1.0 bias (no change)
+    // 1.0 probability = 1.0 + lodBias bias (maximum reduction)
+    return 1.0f + occlusionProb * m_perfConfig.lodBias;
+}
+
 bool OcclusionCuller::isLikelyOccluded(const BoundingBox& box, const float cameraPos[3], float threshold) const {
     return estimateOcclusionProbability(box, cameraPos) >= threshold;
 }
