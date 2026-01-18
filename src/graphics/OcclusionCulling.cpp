@@ -186,6 +186,71 @@ bool OcclusionCuller::isRoomVisible(int roomId) const {
     return false;
 }
 
+float OcclusionCuller::estimateOcclusionProbability(const BoundingBox& box, const float cameraPos[3]) const {
+    // Calculate center of bounding box
+    float centerX = (box.minX + box.maxX) * 0.5f;
+    float centerY = (box.minY + box.maxY) * 0.5f;
+    float centerZ = (box.minZ + box.maxZ) * 0.5f;
+    
+    // Calculate distance from camera
+    float dx = centerX - cameraPos[0];
+    float dy = centerY - cameraPos[1];
+    float dz = centerZ - cameraPos[2];
+    float distanceSquared = dx * dx + dy * dy + dz * dz;
+    float distance = std::sqrt(distanceSquared);
+    
+    // Calculate approximate screen space size
+    float screenSize = calculateScreenSpaceSize(box, cameraPos);
+    
+    // Heuristic factors:
+    // 1. Distance factor - further objects more likely occluded
+    float distanceFactor = std::min(distance / 100.0f, 1.0f);
+    
+    // 2. Size factor - smaller objects more likely occluded
+    float sizeFactor = std::max(0.0f, 1.0f - screenSize * 10.0f);
+    
+    // 3. Historical factor - if object was occluded recently, likely to stay occluded
+    // (simplified - in real implementation would track per-entity history)
+    float historicalFactor = 0.0f;
+    
+    // Combine factors with weights
+    float probability = distanceFactor * 0.4f + sizeFactor * 0.4f + historicalFactor * 0.2f;
+    
+    return std::max(0.0f, std::min(1.0f, probability));
+}
+
+bool OcclusionCuller::isLikelyOccluded(const BoundingBox& box, const float cameraPos[3], float threshold) const {
+    return estimateOcclusionProbability(box, cameraPos) >= threshold;
+}
+
+float OcclusionCuller::calculateScreenSpaceSize(const BoundingBox& box, const float cameraPos[3]) const {
+    // Calculate bounding box dimensions
+    float width = box.maxX - box.minX;
+    float height = box.maxY - box.minY;
+    float depth = box.maxZ - box.minZ;
+    float radius = std::sqrt(width * width + height * height + depth * depth) * 0.5f;
+    
+    // Calculate distance to center
+    float centerX = (box.minX + box.maxX) * 0.5f;
+    float centerY = (box.minY + box.maxY) * 0.5f;
+    float centerZ = (box.minZ + box.maxZ) * 0.5f;
+    
+    float dx = centerX - cameraPos[0];
+    float dy = centerY - cameraPos[1];
+    float dz = centerZ - cameraPos[2];
+    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    
+    // Approximate screen space size using perspective projection
+    // Assumes FOV of ~60 degrees and screen height of 1.0
+    if (distance < 0.001f) distance = 0.001f;
+    return (radius / distance) * 1.732f; // tan(60 degrees) ≈ 1.732
+}
+
+float OcclusionCuller::getHistoricalOcclusionRate(int entityId) const {
+    // Placeholder - would track occlusion history in real implementation
+    return 0.0f;
+}
+
 void OcclusionCuller::resetStats() {
     m_stats.totalObjects = 0;
     m_stats.visibleObjects = 0;

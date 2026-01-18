@@ -187,6 +187,28 @@ public:
      */
     bool testHiZ(const BoundingBox& box) const;
     
+    // Conservative occlusion estimation
+    /**
+     * @brief Estimate occlusion probability without expensive tests
+     * @param box The bounding box to estimate
+     * @param cameraPos Camera position for distance calculation
+     * @return Estimated probability of occlusion (0.0 = definitely visible, 1.0 = likely occluded)
+     * 
+     * Uses heuristics like distance from camera, screen size, and historical data
+     * to provide a fast occlusion probability estimate. Useful for prioritizing
+     * which objects to perform expensive occlusion tests on.
+     */
+    float estimateOcclusionProbability(const BoundingBox& box, const float cameraPos[3]) const;
+    
+    /**
+     * @brief Check if object is likely occluded based on conservative estimate
+     * @param box The bounding box to test
+     * @param cameraPos Camera position
+     * @param threshold Probability threshold (0.0-1.0) above which to consider occluded
+     * @return true if estimated probability exceeds threshold
+     */
+    bool isLikelyOccluded(const BoundingBox& box, const float cameraPos[3], float threshold = 0.8f) const;
+    
     // Portal culling
     /**
      * @brief Add a portal between two rooms
@@ -248,6 +270,9 @@ private:
     
     void generateHiZMipmap(int level);
     float sampleHiZ(float x, float y, int level) const;
+    
+    float calculateScreenSpaceSize(const BoundingBox& box, const float cameraPos[3]) const;
+    float getHistoricalOcclusionRate(int entityId) const;
 
     CullingMethod m_method;
     
