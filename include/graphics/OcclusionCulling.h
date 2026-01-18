@@ -180,6 +180,32 @@ public:
      */
     void updateQueries();
     
+    // Query pool management
+    /**
+     * @brief Initialize occlusion query pool
+     * @param poolSize Maximum number of queries to pre-allocate
+     */
+    void initializeQueryPool(int poolSize = 512);
+    
+    /**
+     * @brief Allocate a query from the pool
+     * @return Query ID, or 0 if pool is exhausted
+     */
+    unsigned int allocateQuery();
+    
+    /**
+     * @brief Return query to pool for reuse
+     * @param queryId Query ID to free
+     */
+    void freeQuery(unsigned int queryId);
+    
+    /**
+     * @brief Get current query pool statistics
+     * @param available Output: number of available queries
+     * @param active Output: number of active queries
+     */
+    void getQueryPoolStats(int& available, int& active) const;
+    
     /**
      * @brief Batch test multiple bounding boxes against frustum
      * @param boxes Array of bounding boxes to test
@@ -400,6 +426,16 @@ private:
     std::vector<OcclusionQuery> m_queries;
     int m_queryFrameDelay;
     float m_minScreenSize;
+    
+    // Query pool
+    struct QueryPool {
+        std::vector<unsigned int> availableQueries;
+        std::vector<unsigned int> activeQueries;
+        int maxPoolSize;
+        
+        QueryPool() : maxPoolSize(512) {}
+    };
+    QueryPool m_queryPool;
     
     // Hierarchical Z-buffer
     std::vector<std::vector<float>> m_hizPyramid;

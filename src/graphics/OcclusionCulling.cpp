@@ -101,6 +101,51 @@ void OcclusionCuller::updateQueries() {
     }
 }
 
+void OcclusionCuller::initializeQueryPool(int poolSize) {
+    m_queryPool.maxPoolSize = poolSize;
+    m_queryPool.availableQueries.clear();
+    m_queryPool.activeQueries.clear();
+    
+    // Pre-allocate GPU query objects
+    // Note: This would use actual GPU API calls (OpenGL, Vulkan, etc.)
+    // For now, just prepare the pool structure
+    m_queryPool.availableQueries.reserve(poolSize);
+}
+
+unsigned int OcclusionCuller::allocateQuery() {
+    if (m_queryPool.availableQueries.empty()) {
+        // Try to allocate new query if under max size
+        if (m_queryPool.activeQueries.size() < static_cast<size_t>(m_queryPool.maxPoolSize)) {
+            // In real implementation, would create GPU query object here
+            unsigned int newQueryId = static_cast<unsigned int>(m_queryPool.activeQueries.size() + 1);
+            m_queryPool.activeQueries.push_back(newQueryId);
+            return newQueryId;
+        }
+        return 0; // Pool exhausted
+    }
+    
+    unsigned int queryId = m_queryPool.availableQueries.back();
+    m_queryPool.availableQueries.pop_back();
+    m_queryPool.activeQueries.push_back(queryId);
+    return queryId;
+}
+
+void OcclusionCuller::freeQuery(unsigned int queryId) {
+    if (queryId == 0) return;
+    
+    // Remove from active list
+    auto it = std::find(m_queryPool.activeQueries.begin(), m_queryPool.activeQueries.end(), queryId);
+    if (it != m_queryPool.activeQueries.end()) {
+        m_queryPool.activeQueries.erase(it);
+        m_queryPool.availableQueries.push_back(queryId);
+    }
+}
+
+void OcclusionCuller::getQueryPoolStats(int& available, int& active) const {
+    available = static_cast<int>(m_queryPool.availableQueries.size());
+    active = static_cast<int>(m_queryPool.activeQueries.size());
+}
+
 void OcclusionCuller::initializeHiZ(int width, int height) {
     m_hizWidth = width;
     m_hizHeight = height;
