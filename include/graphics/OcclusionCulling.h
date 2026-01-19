@@ -11,6 +11,26 @@
  * frustum culling, GPU occlusion queries, hierarchical Z-buffer testing,
  * and portal-based culling. Helps optimize rendering by eliminating
  * objects that are not visible to the camera.
+ * 
+ * @example Basic Usage:
+ * @code
+ * OcclusionCuller culler;
+ * culler.setMethod(CullingMethod::OcclusionQuery);
+ * culler.setQueryFrameDelay(2);
+ * 
+ * // Setup frustum
+ * float viewProj[16] = {...};
+ * culler.setViewProjectionMatrix(viewProj);
+ * 
+ * // Test visibility
+ * BoundingBox box = {-1, -1, -1, 1, 1, 1};
+ * if (culler.isVisible(box, entityId)) {
+ *     // Render entity
+ * }
+ * 
+ * // End of frame
+ * culler.endFrame();
+ * @endcode
  */
 
 namespace Engine {
