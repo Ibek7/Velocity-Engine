@@ -53,14 +53,27 @@ public:
     virtual void flush() = 0;
 };
 
-// Console output sink
+// Console output sink with ANSI color support
 class ConsoleSink : public LogSink {
 public:
     void write(const LogEntry& entry) override;
     void flush() override;
     void setColorEnabled(bool enabled) { useColors = enabled; }
+    
+    // ANSI color codes for better readability
+    static constexpr const char* COLOR_RESET   = "\033[0m";
+    static constexpr const char* COLOR_TRACE   = "\033[37m";    // White
+    static constexpr const char* COLOR_DEBUG   = "\033[36m";    // Cyan
+    static constexpr const char* COLOR_INFO    = "\033[32m";    // Green
+    static constexpr const char* COLOR_WARNING = "\033[33m";    // Yellow
+    static constexpr const char* COLOR_ERROR   = "\033[31m";    // Red
+    static constexpr const char* COLOR_CRITICAL= "\033[1;31m";  // Bold Red
+    static constexpr const char* COLOR_TIME    = "\033[90m";    // Dark Gray
+    static constexpr const char* COLOR_CATEGORY= "\033[35m";    // Magenta
+    
 private:
     bool useColors = true;
+    const char* getLevelColor(LogLevel level) const;
 };
 
 // File output sink
