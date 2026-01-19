@@ -457,6 +457,110 @@ size_t OcclusionCuller::getMemoryUsage() const {
     return getMemoryStats().total;
 }
 
+bool OcclusionCuller::saveConfig(const char* filepath) const {
+    std::ofstream file(filepath);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    file << "# OcclusionCuller Configuration\n\n";
+    
+    // Culling method
+    file << "[Method]\n";
+    file << "cullingMethod=";
+    switch (m_method) {
+        case CullingMethod::FrustumOnly: file << "FrustumOnly\n"; break;
+        case CullingMethod::OcclusionQuery: file << "OcclusionQuery\n"; break;
+        case CullingMethod::HierarchicalZ: file << "HierarchicalZ\n"; break;
+        case CullingMethod::SoftwareRasterization: file << "SoftwareRasterization\n"; break;
+    }
+    file << "\n";
+    
+    // Basic settings
+    file << "[Settings]\n";
+    file << "queryFrameDelay=" << m_queryFrameDelay << "\n";
+    file << "minScreenSize=" << m_minScreenSize << "\n";
+    file << "\n";
+    
+    // Performance config
+    file << "[Performance]\n";
+    file << "enableEarlyOut=" << (m_perfConfig.enableEarlyOut ? "true" : "false") << "\n";
+    file << "enableSIMD=" << (m_perfConfig.enableSIMD ? "true" : "false") << "\n";
+    file << "enableTemporalCoherence=" << (m_perfConfig.enableTemporalCoherence ? "true" : "false") << "\n";
+    file << "enableConservativeEstimation=" << (m_perfConfig.enableConservativeEstimation ? "true" : "false") << "\n";
+    file << "maxQueriesPerFrame=" << m_perfConfig.maxQueriesPerFrame << "\n";
+    file << "lodBias=" << m_perfConfig.lodBias << "\n";
+    
+    file.close();
+    return true;
+}
+
+bool OcclusionCuller::loadConfig(const char* filepath) {
+    std::ifstream file(filepath);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    std::string line;
+    std::string section;
+    
+    while (std::getline(file, line)) {
+        // Skip comments and empty lines
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        
+        // Check for section headers
+        if (line[0] == '[') {
+            size_t end = line.find(']');
+            if (end != std::string::npos) {
+                section = line.substr(1, end - 1);
+            }
+            continue;
+        }
+        
+        // Parse key=value pairs
+        size_t pos = line.find('=');
+        if (pos == std::string::npos) {
+            continue;
+        }
+        
+        std::string key = line.substr(0, pos);
+        std::string value = line.substr(pos + 1);
+        
+        if (section == "Method") {
+            if (key == "cullingMethod") {
+                if (value == "FrustumOnly") m_method = CullingMethod::FrustumOnly;
+                else if (value == "OcclusionQuery") m_method = CullingMethod::OcclusionQuery;
+                else if (value == "HierarchicalZ") m_method = CullingMethod::HierarchicalZ;
+                else if (value == "SoftwareRasterization") m_method = CullingMethod::SoftwareRasterization;
+            }
+        } else if (section == "Settings") {
+            if (key == "queryFrameDelay") m_queryFrameDelay = std::stoi(value);
+            else if (key == "minScreenSize") m_minScreenSize = std::stof(value);
+        } else if (section == "Performance") {
+            if (key == "enableEarlyOut") m_perfConfig.enableEarlyOut = (value == "true");
+            else if (key == "enableSIMD") m_perfConfig.enableSIMD = (value == "true");
+            else if (key == "enableTemporalCoherence") m_perfConfig.enableTemporalCoherence = (value == "true");
+            else if (key == "enableConservativeEstimation") m_perfConfig.enableConservativeEstimation = (value == "true");
+            else if (key == "maxQueriesPerFrame") m_perfConfig.maxQueriesPerFrame = std::stoi(value);
+            else if (key == "lodBias") m_perfConfig.lodBias = std::stof(value);
+        }
+    }
+    
+    file.close();
+    return true;
+}
+
+void OcclusionCuller::resetConfig() {
+    m_method = CullingMethod::FrustumOnly;
+    m_queryFrameDelay = 2;
+    m_minScreenSize = 0.01f;
+    m_perfConfig = PerformanceConfig();
+}
+
 bool OcclusionCuller::exportStatsToJSON(const char* filepath) const {
     std::ofstream file(filepath);
     

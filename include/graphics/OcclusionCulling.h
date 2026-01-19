@@ -131,6 +131,26 @@ public:
      */
     const PerformanceConfig& getPerformanceConfig() const { return m_perfConfig; }
     
+    // Configuration serialization
+    /**
+     * @brief Save current configuration to file
+     * @param filepath Path to configuration file
+     * @return true if save successful
+     */
+    bool saveConfig(const char* filepath) const;
+    
+    /**
+     * @brief Load configuration from file
+     * @param filepath Path to configuration file
+     * @return true if load successful
+     */
+    bool loadConfig(const char* filepath);
+    
+    /**
+     * @brief Reset configuration to default values
+     */
+    void resetConfig();
+    
     // Frustum
     /**
      * @brief Update frustum planes for culling tests
