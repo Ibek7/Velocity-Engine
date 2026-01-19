@@ -155,6 +155,49 @@ struct InputBinding {
 };
 
 /**
+ * @brief Deadzone profile presets for different input scenarios
+ */
+struct DeadzoneProfile {
+    float inner;       // Inner deadzone (ignore small movements)
+    float outer;       // Outer deadzone (1.0 maps to this value)
+    float curvature;   // Response curve exponent (1.0 = linear)
+    std::string name;
+    
+    DeadzoneProfile(float i = 0.15f, float o = 0.95f, float c = 1.0f, const std::string& n = "")
+        : inner(i), outer(o), curvature(c), name(n) {}
+    
+    // Preset profiles
+    static DeadzoneProfile Standard() { return DeadzoneProfile(0.15f, 0.95f, 1.0f, "Standard"); }
+    static DeadzoneProfile Precise() { return DeadzoneProfile(0.05f, 0.98f, 1.2f, "Precise"); }
+    static DeadzoneProfile Smooth() { return DeadzoneProfile(0.20f, 0.90f, 0.8f, "Smooth"); }
+    static DeadzoneProfile Aggressive() { return DeadzoneProfile(0.10f, 0.95f, 1.5f, "Aggressive"); }
+    static DeadzoneProfile Racing() { return DeadzoneProfile(0.05f, 0.99f, 2.0f, "Racing"); }
+    static DeadzoneProfile Platformer() { return DeadzoneProfile(0.25f, 0.92f, 1.0f, "Platformer"); }
+    static DeadzoneProfile Shooter() { return DeadzoneProfile(0.12f, 0.96f, 1.3f, "Shooter"); }
+    static DeadzoneProfile Fighting() { return DeadzoneProfile(0.30f, 0.90f, 1.0f, "Fighting"); }
+    
+    // Apply deadzone profile to raw input value
+    float apply(float value) const {
+        float absValue = std::abs(value);
+        
+        // Apply inner deadzone
+        if (absValue < inner) return 0.0f;
+        
+        // Apply outer deadzone
+        if (absValue > outer) absValue = outer;
+        
+        // Normalize to 0-1 range
+        float normalized = (absValue - inner) / (outer - inner);
+        
+        // Apply response curve
+        float curved = std::pow(normalized, curvature);
+        
+        // Restore sign
+        return (value < 0.0f) ? -curved : curved;
+    }
+};
+
+/**
  * @brief Gamepad input manager
  */
 class GamepadManager {
@@ -241,6 +284,26 @@ public:
      * @brief Get current deadzone value
      */
     float getDeadzone() const { return m_deadzone; }
+    
+    /**
+     * @brief Set deadzone profile for specific gamepad
+     */
+    void setDeadzoneProfile(int gamepadId, const DeadzoneProfile& profile);
+    
+    /**
+     * @brief Get deadzone profile for specific gamepad
+     */
+    const DeadzoneProfile& getDeadzoneProfile(int gamepadId) const;
+    
+    /**
+     * @brief Set default deadzone profile for all new gamepads
+     */
+    void setDefaultDeadzoneProfile(const DeadzoneProfile& profile);
+    
+    /**
+     * @brief Apply deadzone profile to axis value
+     */
+    float applyDeadzoneProfile(int gamepadId, float value) const;
     
     // =========================================================================
     // Rumble/Haptics
@@ -340,6 +403,10 @@ private:
     
     // Gamepad states (indexed by gamepad ID)
     std::unordered_map<int, GamepadState> m_gamepads;
+    
+    // Deadzone profiles per gamepad
+    std::unordered_map<int, DeadzoneProfile> m_deadzoneProfiles;
+    DeadzoneProfile m_defaultDeadzoneProfile;
     
     // Action mapping system
     std::unordered_map<std::string, InputAction> m_actions;
