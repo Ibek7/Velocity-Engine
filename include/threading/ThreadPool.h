@@ -386,10 +386,13 @@ struct WorkerThread {
     size_t threadIndex;
     std::string name;
     
-    // Statistics
+    // Performance metrics
     std::atomic<uint64_t> jobsExecuted;
     std::atomic<uint64_t> jobsStolen;
     std::atomic<uint64_t> totalExecutionTimeMicros;
+    std::atomic<uint64_t> idleTimeMicros;
+    std::atomic<uint64_t> stealAttempts;
+    std::atomic<uint64_t> successfulSteals;
     
     WorkerThread() 
         : running(false)
@@ -397,7 +400,25 @@ struct WorkerThread {
         , jobsExecuted(0)
         , jobsStolen(0)
         , totalExecutionTimeMicros(0)
+        , idleTimeMicros(0)
+        , stealAttempts(0)
+        , successfulSteals(0)
     {}
+    
+    // Get thread efficiency (execution time / total time)
+    double getEfficiency() const {
+        uint64_t total = totalExecutionTimeMicros.load();
+        uint64_t idle = idleTimeMicros.load();
+        if (total + idle == 0) return 0.0;
+        return static_cast<double>(total) / (total + idle);
+    }
+    
+    // Average job execution time
+    double getAverageJobTime() const {
+        uint64_t executed = jobsExecuted.load();
+        if (executed == 0) return 0.0;
+        return static_cast<double>(totalExecutionTimeMicros.load()) / executed;
+    }
 };
 
 // Main job system
@@ -612,18 +633,19 @@ public:
         return JobStatus::Completed;  // Assume completed if not found
     }
     
-    // Statistics
-    size_t getWorkerCount() const { return workers.size(); }
-    size_t getActiveJobCount() const { return activeJobs.load(); }
-    size_t getQueuedJobCount() const { return globalQueue.size(); }
-    
+    // Performance metrics
     struct WorkerStats {
         size_t threadIndex;
         std::string name;
         uint64_t jobsExecuted;
         uint64_t jobsStolen;
         uint64_t totalExecutionTimeMicros;
+        uint64_t idleTimeMicros;
+        uint64_t stealAttempts;
+        uint64_t successfulSteals;
         size_t localQueueSize;
+        double efficiency;
+        double avgJobTimeMicros;
     };
     
     std::vector<WorkerStats> getWorkerStats() const {
@@ -635,10 +657,55 @@ public:
             ws.jobsExecuted = worker->jobsExecuted.load();
             ws.jobsStolen = worker->jobsStolen.load();
             ws.totalExecutionTimeMicros = worker->totalExecutionTimeMicros.load();
+            ws.idleTimeMicros = worker->idleTimeMicros.load();
+            ws.stealAttempts = worker->stealAttempts.load();
+            ws.successfulSteals = worker->successfulSteals.load();
             ws.localQueueSize = worker->localQueue->size();
+            ws.efficiency = worker->getEfficiency();
+            ws.avgJobTimeMicros = worker->getAverageJobTime();
             stats.push_back(ws);
         }
         return stats;
+    }
+    
+    // Get aggregated system metrics
+    struct SystemMetrics {
+        uint64_t totalJobsExecuted;
+        uint64_t totalJobsStolen;
+        uint64_t totalExecutionTimeMicros;
+        uint64_t totalIdleTimeMicros;
+        double averageEfficiency;
+        double stealSuccessRate;
+        size_t activeJobs;
+        size_t queuedJobs;
+    };
+    
+    SystemMetrics getSystemMetrics() const {
+        SystemMetrics metrics{};
+        
+        for (const auto& worker : workers) {
+            metrics.totalJobsExecuted += worker->jobsExecuted.load();
+            metrics.totalJobsStolen += worker->jobsStolen.load();
+            metrics.totalExecutionTimeMicros += worker->totalExecutionTimeMicros.load();
+            metrics.totalIdleTimeMicros += worker->idleTimeMicros.load();
+            metrics.averageEfficiency += worker->getEfficiency();
+            
+            uint64_t attempts = worker->stealAttempts.load();
+            uint64_t successes = worker->successfulSteals.load();
+            if (attempts > 0) {
+                metrics.stealSuccessRate += static_cast<double>(successes) / attempts;
+            }
+        }
+        
+        if (!workers.empty()) {
+            metrics.averageEfficiency /= workers.size();
+            metrics.stealSuccessRate /= workers.size();
+        }
+        
+        metrics.activeJobs = activeJobs.load();
+        metrics.queuedJobs = globalQueue.size();
+        
+        return metrics;
     }
     
 private:
