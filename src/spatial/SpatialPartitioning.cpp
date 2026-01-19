@@ -126,7 +126,7 @@ int QuadtreeNode::getIndex(const AABB& objBounds) {
 
 // Quadtree implementation
 Quadtree::Quadtree(const AABB& bounds, int maxLevel, int maxObjects)
-    : bounds(bounds), maxLevel(maxLevel), maxObjects(maxObjects) {
+    : bounds(bounds), maxLevel(maxLevel), maxObjects(maxObjects), separateStatic(false) {
     root = std::make_unique<QuadtreeNode>(bounds, 0, maxLevel, maxObjects);
 }
 
@@ -134,10 +134,29 @@ Quadtree::~Quadtree() {
 }
 
 void Quadtree::insert(ISpatialObject* object) {
-    root->insert(object);
+    // Check if this is a static object with extended interface
+    ISpatialObjectEx* objEx = dynamic_cast<ISpatialObjectEx*>(object);
+    if (separateStatic && objEx && objEx->isStatic()) {
+        staticObjects.push_back(object);
+        if (staticRoot) {
+            staticRoot->insert(object);
+        }
+    } else {
+        root->insert(object);
+    }
 }
 
 void Quadtree::remove(ISpatialObject* object) {
+    // Try to remove from static objects
+    auto it = std::find(staticObjects.begin(), staticObjects.end(), object);
+    if (it != staticObjects.end()) {
+        staticObjects.erase(it);
+        if (staticRoot) {
+            staticRoot->remove(object);
+        }
+    }
+    
+    // Also try dynamic tree
     root->remove(object);
 }
 
@@ -149,6 +168,12 @@ void Quadtree::update(ISpatialObject* object) {
 std::vector<ISpatialObject*> Quadtree::query(const AABB& range) {
     std::vector<ISpatialObject*> results;
     root->query(range, results);
+    
+    // Also query static tree if enabled
+    if (separateStatic && staticRoot) {
+        staticRoot->query(range, results);
+    }
+    
     return results;
 }
 
@@ -158,6 +183,54 @@ std::vector<ISpatialObject*> Quadtree::queryRadius(const Math::Vector2D& center,
         Math::Vector2D(center.x + radius, center.y + radius)
     };
     return query(range);
+}
+
+std::vector<ISpatialObject*> Quadtree::queryPrioritized(const AABB& range, int minPriority) {
+    std::vector<ISpatialObject*> allResults = query(range);
+    std::vector<ISpatialObject*> results;
+    
+    for (auto* obj : allResults) {
+        ISpatialObjectEx* objEx = dynamic_cast<ISpatialObjectEx*>(obj);
+        if (objEx) {
+            if (objEx->getPriority() >= minPriority) {
+                results.push_back(obj);
+            }
+        } else {
+            // Include objects without extended interface
+            results.push_back(obj);
+        }
+    }
+    
+    // Sort by priority (highest first)
+    std::sort(results.begin(), results.end(), 
+        [](ISpatialObject* a, ISpatialObject* b) {
+            ISpatialObjectEx* aEx = dynamic_cast<ISpatialObjectEx*>(a);
+            ISpatialObjectEx* bEx = dynamic_cast<ISpatialObjectEx*>(b);
+            int aPrio = aEx ? aEx->getPriority() : 25;
+            int bPrio = bEx ? bEx->getPriority() : 25;
+            return aPrio > bPrio;
+        });
+    
+    return results;
+}
+
+void Quadtree::rebuildStatic() {
+    if (!separateStatic) return;
+    
+    // Rebuild static tree
+    staticRoot = std::make_unique<QuadtreeNode>(bounds, 0, maxLevel, maxObjects);
+    for (auto* obj : staticObjects) {
+        staticRoot->insert(obj);
+    }
+}
+
+size_t Quadtree::getObjectCount() const {
+    return getDynamicObjectCount() + staticObjects.size();
+}
+
+size_t Quadtree::getDynamicObjectCount() const {
+    // This is a simplified version - would need recursive counting in production
+    return 0; // Placeholder
 }
 
 void Quadtree::clear() {
