@@ -172,5 +172,34 @@ void AudioManager::unloadAll() {
     soundEffects.clear();
 }
 
+void AudioManager::fadeInMusic(const std::string& name, const FadeCurve& curve, int loops) {
+    if (curve.type == FadeType::None || curve.duration == 0.0f) {
+        playMusic(name, loops);
+        return;
+    }
+    
+    fadeInMusic(name, curve.duration, loops);
+}
+
+void AudioManager::fadeOutMusic(const FadeCurve& curve, std::function<void()> onComplete) {
+    if (curve.type == FadeType::None || curve.duration == 0.0f) {
+        stopMusic();
+        if (onComplete) onComplete();
+        return;
+    }
+    
+    fadeOutMusic(curve.duration, onComplete);
+}
+
+void AudioManager::crossfadeMusic(const std::string& name, const FadeCurve& curve, int loops) {
+    if (curve.type == FadeType::None || curve.duration == 0.0f) {
+        stopMusic();
+        playMusic(name, loops);
+        return;
+    }
+    
+    crossfadeMusic(name, curve.duration, loops);
+}
+
 } // namespace Audio
 } // namespace JJM

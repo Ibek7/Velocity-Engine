@@ -20,6 +20,26 @@ enum class FadeType {
     EaseInOut
 };
 
+// Predefined fade curves for common scenarios
+struct FadeCurve {
+    FadeType type;
+    float duration;
+    std::string name;
+    
+    FadeCurve(FadeType t = FadeType::Linear, float d = 1.0f, const std::string& n = "")
+        : type(t), duration(d), name(n) {}
+    
+    // Preset fade curves
+    static FadeCurve QuickFadeOut() { return FadeCurve(FadeType::EaseIn, 0.5f, "QuickFadeOut"); }
+    static FadeCurve QuickFadeIn() { return FadeCurve(FadeType::EaseOut, 0.5f, "QuickFadeIn"); }
+    static FadeCurve SmoothTransition() { return FadeCurve(FadeType::EaseInOut, 2.0f, "SmoothTransition"); }
+    static FadeCurve DramaticFadeOut() { return FadeCurve(FadeType::EaseIn, 3.0f, "DramaticFadeOut"); }
+    static FadeCurve SubtleFadeIn() { return FadeCurve(FadeType::EaseOut, 4.0f, "SubtleFadeIn"); }
+    static FadeCurve InstantCut() { return FadeCurve(FadeType::None, 0.0f, "InstantCut"); }
+    static FadeCurve CinematicFade() { return FadeCurve(FadeType::EaseInOut, 5.0f, "CinematicFade"); }
+    static FadeCurve BattleTransition() { return FadeCurve(FadeType::Linear, 0.3f, "BattleTransition"); }
+};
+
 // Active fade operation
 struct FadeOperation {
     std::string trackName;
@@ -213,6 +233,29 @@ public:
      * @note Does not affect base music volume setting
      */
     void fadeToVolume(int targetVolume, float duration, FadeType type = FadeType::Linear);
+    
+    /**
+     * @brief Fade in music using predefined curve preset
+     * @param name Name of music track to play
+     * @param curve Predefined fade curve (e.g., FadeCurve::QuickFadeIn())
+     * @param loops Number of times to loop (-1 for infinite)
+     */
+    void fadeInMusic(const std::string& name, const FadeCurve& curve, int loops = -1);
+    
+    /**
+     * @brief Fade out music using predefined curve preset
+     * @param curve Predefined fade curve (e.g., FadeCurve::DramaticFadeOut())
+     * @param onComplete Optional callback to invoke when fade completes
+     */
+    void fadeOutMusic(const FadeCurve& curve, std::function<void()> onComplete = nullptr);
+    
+    /**
+     * @brief Crossfade to new track using predefined curve preset
+     * @param name Name of music track to transition to
+     * @param curve Predefined fade curve (e.g., FadeCurve::SmoothTransition())
+     * @param loops Number of times to loop new track (-1 for infinite)
+     */
+    void crossfadeMusic(const std::string& name, const FadeCurve& curve, int loops = -1);
     
     // Sound effects
     bool loadSoundEffect(const std::string& name, const std::string& filePath);
