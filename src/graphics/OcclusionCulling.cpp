@@ -426,6 +426,37 @@ bool OcclusionCuller::exportStatsToCSV(const char* filepath, bool append) const 
     return true;
 }
 
+OcclusionCuller::MemoryStats OcclusionCuller::getMemoryStats() const {
+    MemoryStats stats;
+    
+    stats.frustumPlanes = sizeof(m_frustumPlanes);
+    stats.occlusionQueries = m_queries.size() * sizeof(OcclusionQuery);
+    
+    stats.hizPyramid = 0;
+    for (const auto& level : m_hizPyramid) {
+        stats.hizPyramid += level.size() * sizeof(float);
+    }
+    
+    stats.portalData = 0;
+    for (const auto& portal : m_portals) {
+        stats.portalData += portal.vertices.size() * sizeof(float);
+    }
+    stats.portalData += m_visibleRooms.size() * sizeof(bool);
+    
+    stats.coherenceData = m_coherenceData.size() * sizeof(ObjectCoherenceData);
+    
+    stats.queryPool = (m_queryPool.availableQueries.capacity() + m_queryPool.activeQueries.capacity()) * sizeof(unsigned int);
+    
+    stats.total = stats.frustumPlanes + stats.occlusionQueries + stats.hizPyramid + 
+                  stats.portalData + stats.coherenceData + stats.queryPool;
+    
+    return stats;
+}
+
+size_t OcclusionCuller::getMemoryUsage() const {
+    return getMemoryStats().total;
+}
+
 bool OcclusionCuller::exportStatsToJSON(const char* filepath) const {
     std::ofstream file(filepath);
     

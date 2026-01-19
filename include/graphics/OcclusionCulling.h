@@ -360,6 +360,33 @@ public:
      */
     void clearCoherenceData();
     
+    // Memory tracking
+    /**
+     * @struct MemoryStats
+     * @brief Memory usage statistics for culling system
+     */
+    struct MemoryStats {
+        size_t frustumPlanes;        ///< Memory used by frustum planes
+        size_t occlusionQueries;     ///< Memory used by query array
+        size_t hizPyramid;           ///< Memory used by HiZ mipmap chain
+        size_t portalData;           ///< Memory used by portal system
+        size_t coherenceData;        ///< Memory used by temporal coherence tracking
+        size_t queryPool;            ///< Memory used by query pool
+        size_t total;                ///< Total memory used
+    };
+    
+    /**
+     * @brief Get current memory usage statistics
+     * @return Memory usage breakdown
+     */
+    MemoryStats getMemoryStats() const;
+    
+    /**
+     * @brief Get estimated memory usage in bytes
+     * @return Total estimated memory consumption
+     */
+    size_t getMemoryUsage() const;
+    
     // Statistics
     /**
      * @struct CullingStats
