@@ -412,6 +412,58 @@ class MyData : public JJM::Serialization::ISerializable {
 - **Memory:** < 500 MB typical usage
 - **Load Time:** < 2s for level loading
 
+### Recent Architecture Enhancements
+
+#### 1. ECS Query Caching (Commit: c25150b)
+- Implemented query result caching with dirty flag invalidation
+- Added cache hit/miss tracking for performance monitoring
+- Limited cache size to 32 entries to prevent unbounded growth
+- Automatic cache invalidation on entity creation/destruction
+- Provides significant performance improvement for frequently-used queries
+
+#### 2. Network Latency Simulation (Commit: af36374)
+- Added configurable latency, variance, and packet loss simulation
+- Support for packet duplication and reordering for realistic testing
+- Delayed packet delivery with scheduled processing
+- Enables thorough network testing without physical network conditions
+
+#### 3. Audio Fade Curve Presets (Commit: 0378805)
+- Predefined fade curves for common scenarios (QuickFade, SmoothTransition, etc.)
+- Genre-specific presets (BattleTransition, CinematicFade)
+- Simplified API for music transitions with meaningful preset names
+
+#### 4. Input Deadzone Profiles (Commit: d1c3fc6)
+- Configurable deadzone profiles for analog stick input
+- Genre-specific presets (Racing, Platformer, Shooter, Fighting)
+- Response curve customization with curvature control
+- Per-gamepad profile configuration for multi-controller support
+
+#### 5. Asset Loading Priorities (Commit: 02b5660)
+- Five-tier priority system (Critical, High, Normal, Low, Background)
+- Priority-based loading with loadByPriority method
+- Automatic sorting by priority for optimal load order
+- Enables better initial user experience through prioritized loading
+
+#### 6. Spatial Partitioning Hints (Commit: 190c5bf)
+- Performance hints for spatial queries (Static, Dynamic, Streaming, etc.)
+- Separate static/dynamic object trees for optimization
+- Priority-based querying with filtering and sorting
+- Object count tracking for performance analysis
+
+#### 7. Viewport Culling Utilities (Commit: a2df398)
+- Viewport bounds calculation with ViewportInfo struct
+- Visibility scoring (0.0 = outside, 1.0 = center)
+- Rectangle overlap area calculation for visibility-based LOD
+- Frustum corner extraction for spatial query integration
+
+#### 8. Occlusion Test Prioritization (Commit: dfd1156)
+- Five-tier priority system for occlusion testing
+- Progressive multi-pass testing strategy
+- Priority distribution statistics for performance tuning
+- Enables testing critical objects first, deferring low-priority tests
+
+These enhancements follow the engine's core principles of modularity, performance, and developer-friendliness, providing powerful optimization tools while maintaining clean, easy-to-use APIs.
+
 ### Future Architecture Improvements
 
 1. **ECS v2:** Cache-friendly archetype storage
