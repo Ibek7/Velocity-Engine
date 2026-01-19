@@ -334,6 +334,54 @@ public:
      */
     bool isLikelyOccluded(const BoundingBox& box, const float cameraPos[3], float threshold = 0.8f) const;
     
+    // Test prioritization
+    /**
+     * @brief Priority level for occlusion testing
+     */
+    enum class TestPriority {
+        Critical,    // Test immediately (important objects)
+        High,        // Test in first pass
+        Normal,      // Test in normal pass
+        Low,         // Test if time permits
+        Deferred     // Can skip this frame
+    };
+    
+    /**
+     * @brief Set test priority for an entity
+     * @param entityId Entity identifier
+     * @param priority Priority level for occlusion testing
+     */
+    void setTestPriority(int entityId, TestPriority priority);
+    
+    /**
+     * @brief Get test priority for an entity
+     * @param entityId Entity identifier
+     * @return Current priority level
+     */
+    TestPriority getTestPriority(int entityId) const;
+    
+    /**
+     * @brief Begin prioritized occlusion testing pass
+     * @param minPriority Minimum priority level to test this pass
+     * 
+     * Start testing entities with priority >= minPriority. Call multiple times
+     * per frame with decreasing priority to implement progressive testing.
+     */
+    void beginPriorityPass(TestPriority minPriority);
+    
+    /**
+     * @brief Check if entity should be tested in current priority pass
+     * @param entityId Entity identifier
+     * @return true if entity priority is high enough for current pass
+     */
+    bool shouldTestInCurrentPass(int entityId) const;
+    
+    /**
+     * @brief Get number of entities at each priority level
+     * @param counts Output array of 5 elements (one per priority level)
+     */
+    void getPriorityDistribution(int counts[5]) const;
+    
     // Portal culling
     /**
      * @brief Add a portal between two rooms

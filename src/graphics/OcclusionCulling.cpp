@@ -17,6 +17,7 @@ OcclusionCuller::OcclusionCuller()
     , m_hizHeight(0)
     , m_hizLevels(0)
     , m_currentRoom(0)
+    , m_currentPassPriority(TestPriority::Critical)
 {
     std::memset(m_frustumPlanes, 0, sizeof(m_frustumPlanes));
     m_stats = CullingStats();
@@ -1041,6 +1042,42 @@ void OcclusionSystem::extractFrustumPlanes(const float viewProj[16]) {
     }
     
     m_culler.setFrustumPlanes(planes);
+}
+
+void OcclusionCuller::setTestPriority(int entityId, TestPriority priority) {
+    m_entityPriorities[entityId] = priority;
+}
+
+OcclusionCuller::TestPriority OcclusionCuller::getTestPriority(int entityId) const {
+    auto it = m_entityPriorities.find(entityId);
+    if (it != m_entityPriorities.end()) {
+        return it->second;
+    }
+    return TestPriority::Normal;
+}
+
+void OcclusionCuller::beginPriorityPass(TestPriority minPriority) {
+    m_currentPassPriority = minPriority;
+}
+
+bool OcclusionCuller::shouldTestInCurrentPass(int entityId) const {
+    TestPriority entityPriority = getTestPriority(entityId);
+    return static_cast<int>(entityPriority) <= static_cast<int>(m_currentPassPriority);
+}
+
+void OcclusionCuller::getPriorityDistribution(int counts[5]) const {
+    // Initialize counts
+    for (int i = 0; i < 5; ++i) {
+        counts[i] = 0;
+    }
+    
+    // Count entities at each priority level
+    for (const auto& pair : m_entityPriorities) {
+        int priorityIndex = static_cast<int>(pair.second);
+        if (priorityIndex >= 0 && priorityIndex < 5) {
+            counts[priorityIndex]++;
+        }
+    }
 }
 
 } // namespace Engine
