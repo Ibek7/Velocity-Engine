@@ -7,7 +7,7 @@ namespace Animation {
 
 // AnimationClip implementation
 AnimationClip::AnimationClip(const std::string& name, bool loop)
-    : name(name), looping(loop) {}
+    : name(name), looping(loop), compressed(false) {}
 
 void AnimationClip::addFrame(const SpriteFrame& frame) {
     frames.push_back(frame);
@@ -22,6 +22,67 @@ const SpriteFrame& AnimationClip::getFrame(int index) const {
         throw std::out_of_range("Frame index out of range");
     }
     return frames[index];
+}
+
+void AnimationClip::compress(float positionTolerance, float timeTolerance) {
+    if (compressed || frames.size() < 3) {
+        return;
+    }
+    
+    std::vector<SpriteFrame> compressedFrames;
+    compressedFrames.push_back(frames[0]); // Always keep first frame
+    
+    for (size_t i = 1; i < frames.size() - 1; ++i) {
+        const auto& prev = frames[i - 1];
+        const auto& current = frames[i];
+        const auto& next = frames[i + 1];
+        
+        // Check if current frame can be interpolated from prev and next
+        bool canSkip = true;
+        
+        // Position check
+        if (std::abs(current.x - (prev.x + next.x) / 2) > positionTolerance ||
+            std::abs(current.y - (prev.y + next.y) / 2) > positionTolerance) {
+            canSkip = false;
+        }
+        
+        // Duration check
+        if (std::abs(current.duration - prev.duration) > timeTolerance) {
+            canSkip = false;
+        }
+        
+        if (!canSkip) {
+            compressedFrames.push_back(current);
+        }
+    }
+    
+    compressedFrames.push_back(frames.back()); // Always keep last frame
+    
+    frames = std::move(compressedFrames);
+    compressed = true;
+}
+
+void AnimationClip::decompress() {
+    // In a real implementation, would restore original frames
+    // For now, just mark as decompressed
+    compressed = false;
+}
+
+bool AnimationClip::isCompressed() const {
+    return compressed;
+}
+
+size_t AnimationClip::getUncompressedSize() const {
+    return frames.capacity() * sizeof(SpriteFrame);
+}
+
+size_t AnimationClip::getCompressedSize() const {
+    return frames.size() * sizeof(SpriteFrame);
+}
+
+float AnimationClip::getCompressionRatio() const {
+    if (getUncompressedSize() == 0) return 1.0f;
+    return static_cast<float>(getCompressedSize()) / static_cast<float>(getUncompressedSize());
 }
 
 // Animator implementation

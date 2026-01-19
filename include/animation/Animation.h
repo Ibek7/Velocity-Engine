@@ -26,6 +26,7 @@ private:
     std::vector<SpriteFrame> frames;
     std::string name;
     bool looping;
+    bool compressed;
     
 public:
     AnimationClip(const std::string& name = "", bool loop = true);
@@ -37,6 +38,14 @@ public:
     int getFrameCount() const { return static_cast<int>(frames.size()); }
     bool isLooping() const { return looping; }
     const std::string& getName() const { return name; }
+    
+    // Keyframe compression
+    void compress(float positionTolerance = 1.0f, float timeTolerance = 0.001f);
+    void decompress();
+    bool isCompressed() const { return compressed; }
+    size_t getUncompressedSize() const;
+    size_t getCompressedSize() const;
+    float getCompressionRatio() const;
 };
 
 // Animator for playing animation clips
