@@ -44,6 +44,22 @@ private:
     Graphics::Color startColor, endColor;
     Math::Vector2D gravity;
     
+    // Emission patterns
+    enum class EmissionPattern {
+        Point,      // Emit from a single point
+        Circle,     // Emit in a circular pattern
+        Ring,       // Emit from ring perimeter
+        Cone,       // Emit in cone shape
+        Box,        // Emit from box area
+        Line,       // Emit along a line
+        Spiral,     // Emit in spiral pattern
+        Burst       // All at once
+    };
+    EmissionPattern m_emissionPattern;
+    float m_patternRadius;
+    float m_patternAngle;
+    Math::Vector2D m_patternSize;
+    
     // Performance optimizations
     bool m_useBatchRendering;
     bool m_useObjectPooling;
@@ -71,6 +87,22 @@ public:
     void setColorRange(const Graphics::Color& start, const Graphics::Color& end);
     void setGravity(const Math::Vector2D& g) { gravity = g; }
     
+    // Emission patterns
+    void setEmissionPattern(EmissionPattern pattern) { m_emissionPattern = pattern; }
+    EmissionPattern getEmissionPattern() const { return m_emissionPattern; }
+    void setPatternRadius(float radius) { m_patternRadius = radius; }
+    void setPatternAngle(float angle) { m_patternAngle = angle; }
+    void setPatternSize(const Math::Vector2D& size) { m_patternSize = size; }
+    
+    // Preset patterns
+    void usePointEmission();
+    void useCircleEmission(float radius);
+    void useRingEmission(float radius);
+    void useConeEmission(float angle, float radius);
+    void useBoxEmission(float width, float height);
+    void useLineEmission(const Math::Vector2D& start, const Math::Vector2D& end);
+    void useSpiralEmission(float radius, float rotationSpeed);
+    
     // Performance optimizations
     void setBatchRendering(bool enable) { m_useBatchRendering = enable; }
     bool isBatchRenderingEnabled() const { return m_useBatchRendering; }
@@ -85,6 +117,8 @@ public:
     
 private:
     void createParticle();
+    Math::Vector2D calculateEmissionPosition();
+    Math::Vector2D calculateEmissionVelocity(const Math::Vector2D& emitPos);
     float randomFloat(float min, float max);
     int allocateParticle();  // Returns index of free particle or -1
     void releaseParticle(int index);  // Mark particle as free for reuse

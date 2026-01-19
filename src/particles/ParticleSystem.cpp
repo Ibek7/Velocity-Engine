@@ -46,9 +46,91 @@ ParticleEmitter::ParticleEmitter(const Math::Vector2D& pos, int maxParticles)
       minSize(2.0f), maxSize(8.0f),
       minAngle(0), maxAngle(2.0f * M_PI),
       startColor(Graphics::Color::White()), endColor(Graphics::Color::White()),
-      gravity(0, 0) {
+      gravity(0, 0),
+      m_emissionPattern(EmissionPattern::Point),
+      m_patternRadius(10.0f),
+      m_patternAngle(M_PI / 4.0f),
+      m_patternSize(10.0f, 10.0f) {
     
     particles.resize(maxParticles);
+}
+
+void ParticleEmitter::usePointEmission() {
+    m_emissionPattern = EmissionPattern::Point;
+}
+
+void ParticleEmitter::useCircleEmission(float radius) {
+    m_emissionPattern = EmissionPattern::Circle;
+    m_patternRadius = radius;
+}
+
+void ParticleEmitter::useRingEmission(float radius) {
+    m_emissionPattern = EmissionPattern::Ring;
+    m_patternRadius = radius;
+}
+
+void ParticleEmitter::useConeEmission(float angle, float radius) {
+    m_emissionPattern = EmissionPattern::Cone;
+    m_patternAngle = angle;
+    m_patternRadius = radius;
+}
+
+void ParticleEmitter::useBoxEmission(float width, float height) {
+    m_emissionPattern = EmissionPattern::Box;
+    m_patternSize = Math::Vector2D(width, height);
+}
+
+void ParticleEmitter::useLineEmission(const Math::Vector2D& start, const Math::Vector2D& end) {
+    m_emissionPattern = EmissionPattern::Line;
+    m_patternSize = end - start;
+}
+
+void ParticleEmitter::useSpiralEmission(float radius, float rotationSpeed) {
+    m_emissionPattern = EmissionPattern::Spiral;
+    m_patternRadius = radius;
+    // rotationSpeed would need additional state variable
+}
+
+Math::Vector2D ParticleEmitter::calculateEmissionPosition() {
+    switch (m_emissionPattern) {
+        case EmissionPattern::Circle: {
+            float angle = randomFloat(0, 2.0f * M_PI);
+            float r = randomFloat(0, m_patternRadius);
+            return position + Math::Vector2D(std::cos(angle) * r, std::sin(angle) * r);
+        }
+        case EmissionPattern::Ring: {
+            float angle = randomFloat(0, 2.0f * M_PI);
+            return position + Math::Vector2D(std::cos(angle) * m_patternRadius, std::sin(angle) * m_patternRadius);
+        }
+        case EmissionPattern::Box: {
+            float x = randomFloat(-m_patternSize.x * 0.5f, m_patternSize.x * 0.5f);
+            float y = randomFloat(-m_patternSize.y * 0.5f, m_patternSize.y * 0.5f);
+            return position + Math::Vector2D(x, y);
+        }
+        case EmissionPattern::Line: {
+            float t = randomFloat(0, 1.0f);
+            return position + m_patternSize * t;
+        }
+        default:
+            return position;
+    }
+}
+
+Math::Vector2D ParticleEmitter::calculateEmissionVelocity(const Math::Vector2D& emitPos) {
+    float angle = randomFloat(minAngle, maxAngle);
+    float speed = randomFloat(minSpeed, maxSpeed);
+    
+    if (m_emissionPattern == EmissionPattern::Ring || m_emissionPattern == EmissionPattern::Circle) {
+        // Radial emission from center
+        Math::Vector2D dir = emitPos - position;
+        float len = dir.length();
+        if (len > 0.001f) {
+            dir = dir / len;
+        }
+        return dir * speed;
+    }
+    
+    return Math::Vector2D(std::cos(angle) * speed, std::sin(angle) * speed);
 }
 
 void ParticleEmitter::update(float deltaTime) {
