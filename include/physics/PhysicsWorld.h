@@ -39,6 +39,13 @@ struct PhysicsConfig {
     bool continuousCollision;
     float sleepThreshold;
     
+    // Constraint limits
+    int maxConstraints;
+    float maxConstraintForce;
+    float constraintBias;
+    float constraintSlop;
+    bool warmStarting;
+    
     PhysicsConfig()
         : gravity(0.0f, -9.81f)
         , fixedTimeStep(1.0f / 60.0f)
@@ -46,6 +53,11 @@ struct PhysicsConfig {
         , positionIterations(3)
         , continuousCollision(true)
         , sleepThreshold(0.01f)
+        , maxConstraints(2048)
+        , maxConstraintForce(10000.0f)
+        , constraintBias(0.2f)
+        , constraintSlop(0.005f)
+        , warmStarting(true)
     {}
 };
 
