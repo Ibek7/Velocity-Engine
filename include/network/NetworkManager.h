@@ -84,6 +84,25 @@ struct NetworkTiming {
     {}
 };
 
+// Latency simulation configuration
+struct LatencySimulation {
+    bool enabled;
+    Timestamp baseLatency;      // Base latency to add (ms)
+    Timestamp latencyVariance;  // Random variance (ms)
+    float packetLossRate;       // Packet drop rate (0.0-1.0)
+    float packetDuplicationRate;// Packet duplication rate (0.0-1.0)
+    Timestamp packetReorderWindow; // Time window for reordering (ms)
+    
+    LatencySimulation()
+        : enabled(false)
+        , baseLatency(0)
+        , latencyVariance(0)
+        , packetLossRate(0.0f)
+        , packetDuplicationRate(0.0f)
+        , packetReorderWindow(0)
+    {}
+};
+
 // =============================================================================
 // Client-Side Prediction
 // =============================================================================
@@ -721,7 +740,34 @@ public:
     int getClientCount() const;
     std::vector<int> getConnectedClients() const;
     
+    // Latency simulation for testing
+    void setLatencySimulation(const LatencySimulation& sim) { latencySim = sim; }
+    const LatencySimulation& getLatencySimulation() const { return latencySim; }
+    
 private:
+    // Latency simulation state
+    LatencySimulation latencySim;
+    
+    struct DelayedPacket {
+        int clientId;
+        Packet packet;
+        Timestamp deliveryTime;
+        
+        DelayedPacket(int id, const Packet& p, Timestamp time)
+            : clientId(id), packet(p), deliveryTime(time) {}
+    };
+    
+    std::vector<DelayedPacket> delayedPackets;
+    
+    // Apply latency simulation to outgoing packets
+    void simulateLatency(int clientId, const Packet& packet);
+    
+    // Process delayed packets that are ready for delivery
+    void processDelayedPackets();
+    
+    // Random number generation for simulation
+    float getRandomFloat(float min, float max);
+    Timestamp getCurrentTime() const;
     void networkThreadFunc();
     void handleTCPServer();
     void handleTCPClient();

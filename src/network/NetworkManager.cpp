@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <chrono>
+#include <random>
 
 namespace JJM {
 namespace Network {
@@ -155,7 +156,13 @@ void NetworkManager::stop() {
 
 void NetworkManager::sendPacket(const Packet& packet, int clientId) {
     std::lock_guard<std::mutex> lock(packetMutex);
-    outgoingPackets.push(std::make_pair(clientId, packet));
+    
+    // Apply latency simulation if enabled
+    if (latencySim.enabled) {
+        simulateLatency(clientId, packet);
+    } else {
+        outgoingPackets.push(std::make_pair(clientId, packet));
+    }
 }
 
 void NetworkManager::broadcastPacket(const Packet& packet) {
@@ -175,6 +182,11 @@ void NetworkManager::setClientDisconnectedHandler(ClientDisconnectedHandler hand
 }
 
 void NetworkManager::update() {
+    // Process delayed packets first
+    if (latencySim.enabled) {
+        processDelayedPackets();
+    }
+    
     std::lock_guard<std::mutex> lock(packetMutex);
     
     while (!incomingPackets.empty()) {
@@ -368,6 +380,70 @@ uint32_t NetworkManager::readUint32(const std::vector<uint8_t>& buffer, size_t& 
                      (buffer[offset + 2] << 16) | (buffer[offset + 3] << 24);
     offset += 4;
     return value;
+}
+
+void NetworkManager::simulateLatency(int clientId, const Packet& packet) {
+    // Simulate packet loss
+    if (getRandomFloat(0.0f, 1.0f) < latencySim.packetLossRate) {
+        return; // Drop packet
+    }
+    
+    // Calculate delivery time with variance
+    Timestamp baseDelay = latencySim.baseLatency;
+    Timestamp variance = static_cast<Timestamp>(getRandomFloat(
+        -static_cast<float>(latencySim.latencyVariance),
+        static_cast<float>(latencySim.latencyVariance)
+    ));
+    Timestamp totalDelay = baseDelay + variance;
+    Timestamp deliveryTime = getCurrentTime() + totalDelay;
+    
+    // Add to delayed packets queue
+    delayedPackets.emplace_back(clientId, packet, deliveryTime);
+    
+    // Simulate packet duplication
+    if (getRandomFloat(0.0f, 1.0f) < latencySim.packetDuplicationRate) {
+        Timestamp duplicateDelay = totalDelay + static_cast<Timestamp>(
+            getRandomFloat(0.0f, static_cast<float>(latencySim.packetReorderWindow))
+        );
+        delayedPackets.emplace_back(clientId, packet, getCurrentTime() + duplicateDelay);
+    }
+    
+    // Simulate packet reordering by adding random delay within reorder window
+    if (latencySim.packetReorderWindow > 0 && getRandomFloat(0.0f, 1.0f) < 0.1f) {
+        Timestamp reorderDelay = static_cast<Timestamp>(
+            getRandomFloat(0.0f, static_cast<float>(latencySim.packetReorderWindow))
+        );
+        delayedPackets.back().deliveryTime += reorderDelay;
+    }
+}
+
+void NetworkManager::processDelayedPackets() {
+    Timestamp currentTime = getCurrentTime();
+    
+    auto it = delayedPackets.begin();
+    while (it != delayedPackets.end()) {
+        if (it->deliveryTime <= currentTime) {
+            // Deliver the packet
+            std::lock_guard<std::mutex> lock(packetMutex);
+            outgoingPackets.push(std::make_pair(it->clientId, it->packet));
+            it = delayedPackets.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+float NetworkManager::getRandomFloat(float min, float max) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(min, max);
+    return dis(gen);
+}
+
+Timestamp NetworkManager::getCurrentTime() const {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
 }
 
 } // namespace Network
