@@ -14,6 +14,7 @@ Entity* EntityManager::createEntity() {
     auto entity = std::make_unique<Entity>(nextID++, this);
     Entity* ptr = entity.get();
     entities.push_back(std::move(entity));
+    invalidateQueryCaches();
     return ptr;
 }
 
@@ -23,6 +24,7 @@ void EntityManager::destroyEntity(EntityID id) {
     
     if (it != entities.end()) {
         entities.erase(it);
+        invalidateQueryCaches();
     }
 }
 
@@ -76,6 +78,53 @@ void EntityManager::update(float deltaTime) {
 void EntityManager::clear() {
     entities.clear();
     nextID = 1;
+    clearQueryCaches();
+}
+
+std::vector<Entity*> EntityManager::queryCached(const EntityFilter& filter) {
+    // Check if we have a cached result for this filter
+    for (auto& cache : queryCaches) {
+        if (cache.filter == filter && !cache.dirty && cache.lastEntityCount == entities.size()) {
+            cacheHits++;
+            return cache.results;
+        }
+    }
+    
+    // Cache miss - perform the query
+    cacheMisses++;
+    std::vector<Entity*> results = query(filter);
+    
+    // Store in cache
+    QueryCache newCache;
+    newCache.filter = filter;
+    newCache.results = results;
+    newCache.dirty = false;
+    newCache.lastEntityCount = entities.size();
+    
+    queryCaches.push_back(newCache);
+    
+    // Limit cache size to prevent unbounded growth
+    if (queryCaches.size() > 32) {
+        queryCaches.erase(queryCaches.begin());
+    }
+    
+    return results;
+}
+
+void EntityManager::invalidateQueryCaches() {
+    for (auto& cache : queryCaches) {
+        cache.dirty = true;
+    }
+}
+
+void EntityManager::clearQueryCaches() {
+    queryCaches.clear();
+    cacheHits = 0;
+    cacheMisses = 0;
+}
+
+std::pair<size_t, size_t> EntityManager::getCacheStatistics() const {
+    return {cacheHits, cacheMisses};
 }
 
 } // namespace ECS

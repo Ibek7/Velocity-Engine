@@ -63,6 +63,19 @@ private:
     // Entity groups for tag-based queries
     std::unordered_map<std::string, EntityGroup> tagGroups;
     
+    // Query result caching
+    struct QueryCache {
+        EntityFilter filter;
+        std::vector<Entity*> results;
+        bool dirty;
+        size_t lastEntityCount;
+        
+        QueryCache() : dirty(true), lastEntityCount(0) {}
+    };
+    std::vector<QueryCache> queryCaches;
+    size_t cacheHits = 0;
+    size_t cacheMisses = 0;
+    
     // Systems
     std::vector<std::unique_ptr<System>> systems;
     bool systemsSorted = false;
@@ -119,6 +132,12 @@ public:
     
     template<typename T>
     void forEachWith(std::function<void(Entity*, T*)> callback);
+    
+    // Query caching
+    std::vector<Entity*> queryCached(const EntityFilter& filter);
+    void invalidateQueryCaches();
+    void clearQueryCaches();
+    void getCacheStatistics(size_t& hits, size_t& misses) const;
     
     std::vector<Entity*> getAllEntities();
     
