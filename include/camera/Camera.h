@@ -245,6 +245,27 @@ public:
     bool isRectInView(const Math::Vector2D& pos, const Math::Vector2D& size) const;
     Math::Vector2D getCenter() const;
     
+    // Viewport culling helpers
+    struct ViewportInfo {
+        Math::Vector2D topLeft;
+        Math::Vector2D bottomRight;
+        float width;
+        float height;
+        
+        ViewportInfo() : width(0), height(0) {}
+    };
+    
+    ViewportInfo getViewportBounds() const;
+    bool shouldCull(const Math::Vector2D& position, float radius) const;
+    bool shouldCullRect(const Math::Vector2D& min, const Math::Vector2D& max) const;
+    
+    // Visibility scoring (0.0 = outside, 1.0 = center, >1.0 = partially visible)
+    float getVisibilityScore(const Math::Vector2D& position) const;
+    float getRectVisibilityScore(const Math::Vector2D& min, const Math::Vector2D& max) const;
+    
+    // Get culling frustum for spatial queries
+    void getFrustumCorners(Math::Vector2D corners[4]) const;
+    
 private:
     void updateFollow(float deltaTime);
     void updateFollowInstant();

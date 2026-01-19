@@ -172,5 +172,85 @@ Math::Vector2D Camera::getCenter() const {
     return position;
 }
 
+Camera::ViewportInfo Camera::getViewportBounds() const {
+    ViewportInfo info;
+    float halfWidth = (viewportSize.x / zoom) * 0.5f;
+    float halfHeight = (viewportSize.y / zoom) * 0.5f;
+    
+    Math::Vector2D center = position + offset + shakeOffset;
+    info.topLeft = Math::Vector2D(center.x - halfWidth, center.y - halfHeight);
+    info.bottomRight = Math::Vector2D(center.x + halfWidth, center.y + halfHeight);
+    info.width = halfWidth * 2.0f;
+    info.height = halfHeight * 2.0f;
+    
+    return info;
+}
+
+bool Camera::shouldCull(const Math::Vector2D& position, float radius) const {
+    ViewportInfo vp = getViewportBounds();
+    
+    // Check if circle intersects viewport
+    if (position.x + radius < vp.topLeft.x) return true;
+    if (position.x - radius > vp.bottomRight.x) return true;
+    if (position.y + radius < vp.topLeft.y) return true;
+    if (position.y - radius > vp.bottomRight.y) return true;
+    
+    return false;
+}
+
+bool Camera::shouldCullRect(const Math::Vector2D& min, const Math::Vector2D& max) const {
+    ViewportInfo vp = getViewportBounds();
+    
+    // Check if rectangles overlap
+    if (max.x < vp.topLeft.x) return true;
+    if (min.x > vp.bottomRight.x) return true;
+    if (max.y < vp.topLeft.y) return true;
+    if (min.y > vp.bottomRight.y) return true;
+    
+    return false;
+}
+
+float Camera::getVisibilityScore(const Math::Vector2D& position) const {
+    ViewportInfo vp = getViewportBounds();
+    Math::Vector2D center = (vp.topLeft + vp.bottomRight) * 0.5f;
+    
+    // Distance from viewport center
+    float dx = std::abs(position.x - center.x) / (vp.width * 0.5f);
+    float dy = std::abs(position.y - center.y) / (vp.height * 0.5f);
+    float distance = std::max(dx, dy);
+    
+    // Score: 1.0 at center, 0.0 at edge, negative outside
+    return 1.0f - distance;
+}
+
+float Camera::getRectVisibilityScore(const Math::Vector2D& min, const Math::Vector2D& max) const {
+    ViewportInfo vp = getViewportBounds();
+    
+    // Calculate overlap area
+    float overlapMinX = std::max(min.x, vp.topLeft.x);
+    float overlapMaxX = std::min(max.x, vp.bottomRight.x);
+    float overlapMinY = std::max(min.y, vp.topLeft.y);
+    float overlapMaxY = std::min(max.y, vp.bottomRight.y);
+    
+    if (overlapMinX >= overlapMaxX || overlapMinY >= overlapMaxY) {
+        return 0.0f; // No overlap
+    }
+    
+    float overlapArea = (overlapMaxX - overlapMinX) * (overlapMaxY - overlapMinY);
+    float rectArea = (max.x - min.x) * (max.y - min.y);
+    
+    // Score: ratio of visible area to total area
+    return overlapArea / rectArea;
+}
+
+void Camera::getFrustumCorners(Math::Vector2D corners[4]) const {
+    ViewportInfo vp = getViewportBounds();
+    
+    corners[0] = vp.topLeft;
+    corners[1] = Math::Vector2D(vp.bottomRight.x, vp.topLeft.y);
+    corners[2] = vp.bottomRight;
+    corners[3] = Math::Vector2D(vp.topLeft.x, vp.bottomRight.y);
+}
+
 } // namespace Graphics
 } // namespace JJM
