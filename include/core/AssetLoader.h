@@ -23,15 +23,25 @@ enum class AssetType {
     DATA
 };
 
+enum class LoadingPriority {
+    Critical,    // Must be loaded first (UI, core gameplay)
+    High,        // Important for initial experience
+    Normal,      // Standard loading priority
+    Low,         // Can be deferred (optional content)
+    Background   // Load when idle
+};
+
 struct AssetInfo {
     std::string id;
     std::string path;
     AssetType type;
+    LoadingPriority priority;
     bool loaded;
     
-    AssetInfo() : loaded(false) {}
-    AssetInfo(const std::string& id, const std::string& path, AssetType type)
-        : id(id), path(path), type(type), loaded(false) {}
+    AssetInfo() : priority(LoadingPriority::Normal), loaded(false) {}
+    AssetInfo(const std::string& id, const std::string& path, AssetType type, 
+              LoadingPriority priority = LoadingPriority::Normal)
+        : id(id), path(path), type(type), priority(priority), loaded(false) {}
 };
 
 class AssetLoader {
@@ -58,12 +68,16 @@ public:
     AssetLoader(ResourceManager* rm, Audio::AudioManager* am, Graphics::Renderer* r);
     ~AssetLoader();
     
-    void addTexture(const std::string& id, const std::string& path);
-    void addSound(const std::string& id, const std::string& path);
-    void addMusic(const std::string& id, const std::string& path);
+    void addTexture(const std::string& id, const std::string& path, 
+                    LoadingPriority priority = LoadingPriority::Normal);
+    void addSound(const std::string& id, const std::string& path, 
+                  LoadingPriority priority = LoadingPriority::Normal);
+    void addMusic(const std::string& id, const std::string& path, 
+                  LoadingPriority priority = LoadingPriority::Normal);
     
     void loadAll();
     void loadAllAsync();
+    void loadByPriority(LoadingPriority minPriority = LoadingPriority::Critical);
     void loadGroup(const std::vector<std::string>& ids);
     
     void unloadAll();
@@ -79,9 +93,15 @@ public:
     int getLoadedCount() const { return loadedCount; }
     int getTotalCount() const { return totalCount; }
     
+    // Priority management
+    void setAssetPriority(const std::string& id, LoadingPriority priority);
+    LoadingPriority getAssetPriority(const std::string& id) const;
+    std::vector<std::string> getAssetsByPriority(LoadingPriority priority) const;
+    
 private:
     void loadAsset(size_t index);
     void loadAllInternal();
+    void sortAssetsByPriority();
 };
 
 } // namespace Core

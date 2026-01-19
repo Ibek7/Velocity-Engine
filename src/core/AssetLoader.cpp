@@ -1,5 +1,6 @@
 #include "core/AssetLoader.h"
 #include <iostream>
+#include <algorithm>
 
 namespace JJM {
 namespace Core {
@@ -13,28 +14,28 @@ AssetLoader::~AssetLoader() {
     unloadAll();
 }
 
-void AssetLoader::addTexture(const std::string& id, const std::string& path) {
+void AssetLoader::addTexture(const std::string& id, const std::string& path, LoadingPriority priority) {
     std::lock_guard<std::mutex> lock(loadMutex);
     
-    AssetInfo info(id, path, AssetType::TEXTURE);
+    AssetInfo info(id, path, AssetType::TEXTURE, priority);
     assetMap[id] = assets.size();
     assets.push_back(info);
     totalCount = static_cast<int>(assets.size());
 }
 
-void AssetLoader::addSound(const std::string& id, const std::string& path) {
+void AssetLoader::addSound(const std::string& id, const std::string& path, LoadingPriority priority) {
     std::lock_guard<std::mutex> lock(loadMutex);
     
-    AssetInfo info(id, path, AssetType::SOUND);
+    AssetInfo info(id, path, AssetType::SOUND, priority);
     assetMap[id] = assets.size();
     assets.push_back(info);
     totalCount = static_cast<int>(assets.size());
 }
 
-void AssetLoader::addMusic(const std::string& id, const std::string& path) {
+void AssetLoader::addMusic(const std::string& id, const std::string& path, LoadingPriority priority) {
     std::lock_guard<std::mutex> lock(loadMutex);
     
-    AssetInfo info(id, path, AssetType::MUSIC);
+    AssetInfo info(id, path, AssetType::MUSIC, priority);
     assetMap[id] = assets.size();
     assets.push_back(info);
     totalCount = static_cast<int>(assets.size());
@@ -205,6 +206,58 @@ void AssetLoader::loadAsset(size_t index) {
 void AssetLoader::loadAllInternal() {
     for (size_t i = 0; i < assets.size(); i++) {
         loadAsset(i);
+    }
+}
+
+void AssetLoader::loadByPriority(LoadingPriority minPriority) {
+    std::lock_guard<std::mutex> lock(loadMutex);
+    
+    // Sort assets by priority
+    sortAssetsByPriority();
+    
+    // Load assets with sufficient priority
+    for (size_t i = 0; i < assets.size(); i++) {
+        if (static_cast<int>(assets[i].priority) <= static_cast<int>(minPriority) && !assets[i].loaded) {
+            loadAsset(i);
+        }
+    }
+}
+
+void AssetLoader::setAssetPriority(const std::string& id, LoadingPriority priority) {
+    auto it = assetMap.find(id);
+    if (it != assetMap.end()) {
+        assets[it->second].priority = priority;
+    }
+}
+
+LoadingPriority AssetLoader::getAssetPriority(const std::string& id) const {
+    auto it = assetMap.find(id);
+    if (it != assetMap.end()) {
+        return assets[it->second].priority;
+    }
+    return LoadingPriority::Normal;
+}
+
+std::vector<std::string> AssetLoader::getAssetsByPriority(LoadingPriority priority) const {
+    std::vector<std::string> result;
+    for (const auto& asset : assets) {
+        if (asset.priority == priority) {
+            result.push_back(asset.id);
+        }
+    }
+    return result;
+}
+
+void AssetLoader::sortAssetsByPriority() {
+    std::stable_sort(assets.begin(), assets.end(), 
+        [](const AssetInfo& a, const AssetInfo& b) {
+            return static_cast<int>(a.priority) < static_cast<int>(b.priority);
+        });
+    
+    // Rebuild asset map after sorting
+    assetMap.clear();
+    for (size_t i = 0; i < assets.size(); i++) {
+        assetMap[assets[i].id] = i;
     }
 }
 
