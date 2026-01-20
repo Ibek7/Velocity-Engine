@@ -19,6 +19,17 @@ struct AudioListener {
     AudioListener() : position(0, 0), velocity(0, 0), orientation(0.0f) {}
 };
 
+/**
+ * @brief Distance attenuation models for spatial audio
+ */
+enum class AttenuationModel {
+    Linear,           // Linear falloff
+    Inverse,          // 1/distance falloff (realistic)
+    InverseSquare,    // 1/distance^2 falloff (physically accurate)
+    Exponential,      // Exponential decay
+    Custom            // User-defined curve
+};
+
 struct SpatialSound {
     std::string soundId;
     Math::Vector2D position;
@@ -30,6 +41,9 @@ struct SpatialSound {
     float referenceDistance;
     float rolloffFactor;
     
+    AttenuationModel attenuationModel;  // Distance attenuation model
+    float customAttenuationCurve[16];   // For custom curves
+    
     bool isLooping;
     bool is3D;
     bool isPlaying;
@@ -39,7 +53,13 @@ struct SpatialSound {
           volume(1.0f), pitch(1.0f),
           maxDistance(100.0f), referenceDistance(1.0f),
           rolloffFactor(1.0f),
-          isLooping(false), is3D(true), isPlaying(false) {}
+          attenuationModel(AttenuationModel::Inverse),
+          isLooping(false), is3D(true), isPlaying(false) {
+        for (int i = 0; i < 16; ++i) customAttenuationCurve[i] = 0.0f;
+    }
+    
+    // Calculate attenuation based on distance
+    float calculateAttenuation(float distance) const;
 };
 
 // =============================================================================
