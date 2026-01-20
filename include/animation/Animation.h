@@ -35,9 +35,33 @@ public:
     void addFrame(int x, int y, int w, int h, float duration = 0.1f);
     
     const SpriteFrame& getFrame(int index) const;
+    
+    // Bounds-checked frame access
+    const SpriteFrame* getFrameSafe(int index) const {
+        if (index < 0 || index >= static_cast<int>(frames.size())) {
+            return nullptr;
+        }
+        return &frames[index];
+    }
+    
+    bool isValidFrameIndex(int index) const {
+        return index >= 0 && index < static_cast<int>(frames.size());
+    }
+    
     int getFrameCount() const { return static_cast<int>(frames.size()); }
     bool isLooping() const { return looping; }
     const std::string& getName() const { return name; }
+    
+    // Validation
+    bool validate() const {
+        if (frames.empty()) return false;
+        for (const auto& frame : frames) {
+            if (frame.width <= 0 || frame.height <= 0 || frame.duration <= 0.0f) {
+                return false;
+            }
+        }
+        return true;
+    }
     
     // Keyframe compression
     void compress(float positionTolerance = 1.0f, float timeTolerance = 0.001f);
