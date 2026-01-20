@@ -89,14 +89,33 @@ private:
     std::atomic<bool> shutdownRequested;
     std::atomic<size_t> pendingLoads;
     
+    // LRU cache for resource management
+    struct CacheEntry {
+        std::string id;
+        std::shared_ptr<Graphics::Texture> resource;
+        size_t memorySize;
+        size_t accessCount;
+        std::chrono::steady_clock::time_point lastAccessTime;
+        
+        CacheEntry() : memorySize(0), accessCount(0) {}
+    };
+    
+    std::unordered_map<std::string, CacheEntry> cache;
+    std::list<std::string> lruList;  // Most recently used at front
+    std::mutex cacheMutex;
+    
     // Statistics tracking
     std::atomic<size_t> totalMemoryUsed;
     std::atomic<size_t> failedLoads;
     std::atomic<float> totalLoadTime;
     std::atomic<size_t> loadCount;
+    std::atomic<size_t> cacheHits;
+    std::atomic<size_t> cacheMisses;
+    std::atomic<size_t> evictions;
     
     // Resource limits
     size_t maxMemoryLimit;
+    size_t maxCacheSize;
     
     // Progress tracking
     mutable std::mutex m_progressMutex;
@@ -157,6 +176,18 @@ public:
     size_t getMemoryLimit() const { return maxMemoryLimit; }
     size_t getMemoryUsed() const { return totalMemoryUsed; }
     void evictLRU(size_t bytesToFree);
+    
+    // LRU cache management
+    void setCacheSize(size_t maxEntries) { maxCacheSize = maxEntries; }
+    size_t getCacheSize() const { return cache.size(); }
+    void clearCache();
+    void touchResource(const std::string& id);  // Mark as recently used
+    float getCacheHitRate() const {
+        size_t hits = cacheHits.load();
+        size_t misses = cacheMisses.load();
+        if (hits + misses == 0) return 0.0f;
+        return static_cast<float>(hits) / (hits + misses);
+    }
     
     // Statistics
     ResourceStats getStats() const;
