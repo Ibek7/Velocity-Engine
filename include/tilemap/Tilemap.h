@@ -58,7 +58,15 @@ public:
     void setTile(int layer, int x, int y, int tileId);
     int getTile(int layer, int x, int y) const;
     
+    // Optimized rendering with frustum culling
     void render(Graphics::Renderer* renderer, const Math::Vector2D& offset);
+    void renderCulled(Graphics::Renderer* renderer, const Math::Vector2D& offset,
+                     const Math::Vector2D& viewportMin, const Math::Vector2D& viewportMax);
+    
+    // Calculate visible tile range for culling
+    void calculateVisibleTiles(const Math::Vector2D& viewportMin, 
+                               const Math::Vector2D& viewportMax,
+                               int& startX, int& startY, int& endX, int& endY) const;
     
     bool isTileSolid(int tileId) const;
     Math::Vector2D getTilePosition(int x, int y) const;
