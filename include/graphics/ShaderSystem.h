@@ -105,6 +105,20 @@ struct ShaderVariantKeyHash {
 };
 
 /**
+ * @brief Shader cache entry for compiled shaders
+ */
+struct ShaderCacheEntry {
+    std::string source;
+    std::vector<uint8_t> compiledBytecode;
+    std::chrono::system_clock::time_point compileTime;
+    size_t hash;
+    ShaderVariantKey variantKey;
+    bool isValid;
+    
+    ShaderCacheEntry() : hash(0), isValid(false) {}
+};
+
+/**
  * @brief Shader compilation error information
  */
 struct ShaderError {
