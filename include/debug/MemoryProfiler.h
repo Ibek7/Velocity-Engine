@@ -25,7 +25,7 @@ struct AllocationRecord {
 };
 
 /**
- * @brief Memory statistics
+ * @brief Memory statistics with detailed breakdown
  */
 struct MemoryStats {
     size_t totalAllocations;
@@ -36,6 +36,32 @@ struct MemoryStats {
     size_t totalBytesFreed;
     size_t currentBytesAllocated;
     size_t peakBytesAllocated;
+    
+    // Allocation size distribution
+    size_t smallAllocations;   // < 1KB
+    size_t mediumAllocations;  // 1KB - 1MB
+    size_t largeAllocations;   // > 1MB
+    
+    // Allocation age tracking
+    size_t shortLivedAllocs;   // < 1 second
+    size_t mediumLivedAllocs;  // 1-60 seconds
+    size_t longLivedAllocs;    // > 60 seconds
+    
+    // Performance metrics
+    double avgAllocationSize;
+    double avgDeallocationTime;
+    size_t fragmentationBytes;
+    
+    MemoryStats() 
+        : totalAllocations(0), totalDeallocations(0)
+        , currentAllocations(0), peakAllocations(0)
+        , totalBytesAllocated(0), totalBytesFreed(0)
+        , currentBytesAllocated(0), peakBytesAllocated(0)
+        , smallAllocations(0), mediumAllocations(0), largeAllocations(0)
+        , shortLivedAllocs(0), mediumLivedAllocs(0), longLivedAllocs(0)
+        , avgAllocationSize(0.0), avgDeallocationTime(0.0)
+        , fragmentationBytes(0)
+    {}
 };
 
 /**
