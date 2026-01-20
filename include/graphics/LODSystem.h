@@ -37,10 +37,12 @@ public:
     int selectLOD(float distanceToCamera) const;
     int selectLODByScreenCoverage(float screenCoverage) const;
     
-    // Transition
+    // Transition with hysteresis to prevent LOD flickering
     void setTransitionSpeed(float speed) { m_transitionSpeed = speed; }
     void enableCrossFade(bool enable) { m_crossFadeEnabled = enable; }
     void setFadeRange(float range) { m_fadeRange = range; }
+    void setHysteresis(float hysteresis) { m_hysteresis = hysteresis; }  // Prevents rapid switching
+    float getHysteresis() const { return m_hysteresis; }
     
     const LODTransition& getTransition() const { return m_transition; }
     
@@ -64,6 +66,8 @@ private:
     bool m_crossFadeEnabled;
     float m_fadeRange;
     float m_lodBias;
+    float m_hysteresis;  // Distance buffer to prevent LOD switching oscillation
+    float m_lastTransitionDistance;  // Track last distance when LOD changed
 };
 
 class LODGroup {
