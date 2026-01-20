@@ -121,6 +121,31 @@ public:
     void drawTransform(const Math::Vector2D& position, float rotation, float scale = 1.0f,
                       float axisLength = 50.0f, float duration = 0.0f);
     
+    // Common debug shapes (convenience methods)
+    void drawSphere2D(const Math::Vector2D& center, float radius,
+                     const Graphics::Color& color = Graphics::Color(255, 255, 255),
+                     float duration = 0.0f);
+    
+    void drawCapsule2D(const Math::Vector2D& start, const Math::Vector2D& end, float radius,
+                       const Graphics::Color& color = Graphics::Color(255, 255, 255),
+                       float duration = 0.0f);
+    
+    void drawPath(const std::vector<Math::Vector2D>& waypoints,
+                 const Graphics::Color& color = Graphics::Color(255, 255, 0),
+                 bool showWaypoints = true, float duration = 0.0f);
+    
+    void drawBezierCurve(const Math::Vector2D& p0, const Math::Vector2D& p1,
+                        const Math::Vector2D& p2, const Math::Vector2D& p3,
+                        const Graphics::Color& color = Graphics::Color(255, 255, 255),
+                        int segments = 20, float duration = 0.0f);
+    
+    void drawFrustum(const Math::Vector2D& position, float rotation, float fov,
+                    float nearDist, float farDist,
+                    const Graphics::Color& color = Graphics::Color(0, 255, 255),
+                    float duration = 0.0f);
+    void drawTransform(const Math::Vector2D& position, float rotation, float scale = 1.0f,
+                      float axisLength = 50.0f, float duration = 0.0f);
+    
     void drawBasis(const Math::Vector2D& origin, const Math::Vector2D& xAxis,
                   const Math::Vector2D& yAxis, float length = 50.0f,
                   float duration = 0.0f);
