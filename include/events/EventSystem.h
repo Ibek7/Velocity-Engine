@@ -11,9 +11,35 @@
 #include <mutex>
 #include <chrono>
 #include <optional>
+#include <type_traits>
 
 namespace JJM {
 namespace Events {
+
+/**
+ * @brief Base class for strongly-typed events
+ * 
+ * Derive from this to create type-safe event classes:
+ * @code
+ * struct PlayerDiedEvent : public TypedEvent<PlayerDiedEvent> {
+ *     int playerId;
+ *     std::string cause;
+ * };
+ * @endcode
+ */
+template<typename Derived>
+struct TypedEvent {
+    static const char* getEventType() {
+        static const std::string typeName = typeid(Derived).name();
+        return typeName.c_str();
+    }
+};
+
+/**
+ * @brief Type-safe event handler wrapper
+ */
+template<typename EventType>
+using TypedEventHandler = std::function<void(const EventType&)>;
 
 /**
  * @brief Event priority levels
@@ -255,6 +281,36 @@ public:
     int subscribeFiltered(const std::string& eventType, const EventHandler& handler,
                           const EventFilter& filter, EventPriority priority = EventPriority::Normal);
     void unsubscribe(const std::string& eventType, int subscriptionId);
+    
+    // Type-safe event API
+    template<typename EventType>
+    int subscribeTyped(const TypedEventHandler<EventType>& handler,
+                      EventPriority priority = EventPriority::Normal) {
+        static_assert(std::is_base_of<TypedEvent<EventType>, EventType>::value,
+                     "EventType must inherit from TypedEvent<EventType>");
+        
+        auto wrapper = [handler](const Event& event) {
+            try {
+                const EventType& typedEvent = std::any_cast<const EventType&>(
+                    event.getData<std::any>("_typed_event_data"));
+                handler(typedEvent);
+            } catch (const std::bad_any_cast&) {
+                // Event wasn't properly typed, ignore
+            }
+        };
+        
+        return subscribe(EventType::getEventType(), wrapper, priority);
+    }
+    
+    template<typename EventType>
+    void dispatchTyped(const EventType& typedEvent) {
+        static_assert(std::is_base_of<TypedEvent<EventType>, EventType>::value,
+                     "EventType must inherit from TypedEvent<EventType>");
+        
+        Event event(EventType::getEventType());
+        event.setData<std::any>("_typed_event_data", typedEvent);
+        dispatchEvent(event);
+    }
     
     // Immediate dispatch
     void dispatchEvent(const Event& event);
