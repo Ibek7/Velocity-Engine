@@ -9,6 +9,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### January 25, 2026 - Weather, Cutscenes, and Gameplay Systems
+- **Weather System**:
+  - Dynamic weather conditions (clear, cloudy, fog, rain, snow, thunderstorm, sandstorm)
+  - Wind simulation with gusts and directional control
+  - Precipitation system with intensity, particle size, and fall speed
+  - Atmospheric effects (fog density, lighting multipliers, visibility distance)
+  - Smooth transitions between weather states
+  - Thunder strikes with random positioning for storm weather
+  - 8 built-in presets with customizable parameters
+  - Random weather generation with configurable durations
+  - Weather change callbacks and event system
+  - Statistics tracking (time in each weather type, weather changes, thunder strikes)
+
+- **Cutscene System**:
+  - Event-based cutscene sequencing with precise timing
+  - 12 event types (camera moves, animations, audio, subtitles, fades, entity control)
+  - Camera movement with interpolation types (linear, smooth, bezier, spline, follow)
+  - Subtitle display with speaker names and duration control
+  - Playback control (play, pause, resume, stop, skip, seek)
+  - Blocking events for sequential execution
+  - UI control (hide UI, restore player control)
+  - Fade in/out at start and end
+  - Event callbacks for custom integration
+  - Progress tracking and state management
+  - Helper methods for building cutscene events
+
+- **Achievement Tracking System**:
+  - Multi-category achievements (story, combat, exploration, collection, skill, social, special)
+  - 6 condition types (single event, cumulative, threshold, collection, combo, time-limited)
+  - Progress tracking with percentage calculation
+  - Achievement rewards (experience, currency, items, titles)
+  - Secret and rare achievement flags
+  - Player statistics (total unlocked, points earned, completion percentage)
+  - Category-based filtering and progress tracking
+  - Recently unlocked achievements list
+  - Event-based progress system with callbacks
+  - Achievement unlock notifications
+  - Save/load support for persistence
+
+- **Crowd Simulation System** (AI):
+  - Large-scale NPC crowd behavior with flocking algorithms
+  - Separation, alignment, and cohesion forces
+  - Local collision avoidance
+  - Path following for guided movement
+  - 5 formation types (line, column, wedge, circle, grid)
+  - Spatial partitioning with grid system for performance
+  - Per-agent properties (max speed, force weights, perception radius)
+  - Neighbor detection and tracking
+  - Formation position assignment and maintenance
+
+- **Footstep System** (Audio):
+  - Dynamic footstep audio based on 11 surface materials
+  - Surface types: concrete, wood, metal, grass, gravel, water, snow, mud, sand, carpet, tile
+  - 5 intensity levels: walk, run, crouch, jump, slide
+  - Material-based sound configuration with pitch and volume modulation
+  - Distance attenuation for spatial audio
+  - Random variation in pitch and volume per step
+  - Status callbacks for footstep events
+  - Entity-based tracking
+
+- **Damage System** (Gameplay):
+  - 12 damage types (physical, fire, ice, lightning, poison, etc.)
+  - Armor and resistance calculations with percentages
+  - Critical hit system with multipliers
+  - Blocking and dodging mechanics
+  - 10 status effects (burning, frozen, poisoned, stunned, etc.)
+  - Damage over time (DOT) processing
+  - Area damage with falloff
+  - Damage statistics tracking per entity
+  - Event callbacks for damage dealt/received
+  - Immunity and invulnerability support
+
+- **Tutorial System** (UI):
+  - Multi-step tutorial sequences
+  - 6 step types (message, highlight, wait for action, wait for input, cinematic, checkpoint)
+  - Context-sensitive hints system
+  - Progress tracking with skippable tutorials
+  - Tutorial completion callbacks
+  - Active tutorial management
+  - Tutorial state persistence
+  - Hint triggering based on conditions
+
+- **Faction System** (Gameplay):
+  - Faction reputation tracking (-1000 to +1000)
+  - 8 reputation levels (revered, exalted, honored, friendly, neutral, unfriendly, hostile, hated)
+  - 6 relationship types between factions (allied, friendly, neutral, unfriendly, hostile, enemy)
+  - War and peace state management
+  - Faction membership with ranks
+  - Entity-faction assignment
+  - Reputation change propagation to allied/enemy factions
+  - Reputation gain/loss callbacks
+  - Query system for faction relationships
+
+- **Time of Day System** (Graphics):
+  - 8 time periods (night, dawn, morning, noon, afternoon, dusk, evening, late night)
+  - Configurable day length with time progression
+  - Sun and moon positioning calculations
+  - Sky color interpolation between time periods
+  - Lighting configuration per time period
+  - Ambient, sun, and moon intensity control
+  - Smooth transitions between periods
+  - Sunrise and sunset callbacks
+  - Period change notifications
+  - 8 built-in time presets
+
 #### January 24, 2026 - Advanced Systems and Editor Tools
 - **Shader Graph System**:
   - Node-based visual shader editor with material graphs
