@@ -39,6 +39,9 @@ private:
     // Demo objects
     Math::Vector2D playerPos;
     float playerSpeed;
+
+    void processInput(const float dt);
+    void updateGameObjects(const float dt);
     
 public:
     DemoGame() 
@@ -125,7 +128,11 @@ public:
         Debug::ScopedProfile profile("Update");
         
         inputManager.update();
-        
+        processInput(dt);
+        updateGameObjects(dt);
+    }
+
+    void processInput(const float dt) {
         // Player movement
         Math::Vector2D movement(0, 0);
         if (inputManager.isKeyHeld(SDL_SCANCODE_W) || inputManager.isKeyHeld(SDL_SCANCODE_UP)) {
@@ -166,7 +173,9 @@ public:
         if (inputManager.isKeyPressed(SDL_SCANCODE_ESCAPE)) {
             running = false;
         }
-        
+    }
+
+    void updateGameObjects(const float dt) {
         camera->setPosition(playerPos);
         camera->update(dt);
         particleSystem->update(dt);
