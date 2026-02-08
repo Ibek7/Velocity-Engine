@@ -114,9 +114,23 @@ make debug
 # Clean build artifacts
 make clean
 
-# Build and run the application
-make run
-```
+    # Build and run the application
+    make run
+    ```
+    
+    ## Troubleshooting
+    
+    ### Common Issues
+    
+    *   **SDL2 not found**: Ensure you have installed SDL2 and its development libraries.
+        *   On macOS: `brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf`
+        *   On Ubuntu: `sudo apt-get install libsdl2-dev ...`
+    *   **Linker errors**: Check that your library paths are correct in the Makefile.
+    *   **"Image not found"**: Verify that assets are in the `bin/assets` directory or correctly referenced.
+    
+    ## Project Status
+    
+    Active development. Current focus is on reliability and core features.
 
 ## Project Structure
 
