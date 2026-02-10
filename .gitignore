@@ -30,3 +30,21 @@ bin/
 
 # Core dumps
 core
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# Build Directories
+cmake-build-debug/
+cmake-build-release/
+
