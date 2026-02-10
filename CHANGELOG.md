@@ -429,6 +429,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced README with performance benchmarks and optimization details
 - Updated performance metrics showing 95%+ thread pool efficiency and 90%+ cache hit rates
 
+## [1.0.1] - 2026-01-26
+
+### Added
+- CI/CD workflow with GitHub Actions
+- `StringUtils` utility class with `trim`, `split`, `toUpper`, `toLower`
+- `Timer` utility class for high-resolution timing
+- `clamp` function to `MathUtils`
+- `Version` header for automated versioning
+- Unit tests for `Vector2D` and `StringUtils`
+- `.clang-format` for Google style code formatting
+- Troubleshooting section to README
+
+### Changed
+- Refactored `DemoGame` out of `main.cpp` into separate class
+- Refactored `Config.cpp` to use `StringUtils`
+- Updated `.gitignore` with better defaults for macOS and IDEs
+
 ## [1.0.0] - 2026-01-12
 
 ### Added
