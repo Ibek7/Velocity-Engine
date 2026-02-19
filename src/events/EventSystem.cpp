@@ -1,21 +1,32 @@
 #include "events/EventSystem.h"
+
 #include <algorithm>
 
 namespace JJM {
 namespace Events {
 
-// Event implementation
-Event::Event(const std::string& eventType)
-    : type(eventType), handled(false) {}
-
-// EventDispatcher implementation
+// Static member initialization
+std::atomic<uint64_t> Event::nextEventId{1};
 EventDispatcher* EventDispatcher::instance = nullptr;
 
-EventDispatcher::EventDispatcher() : nextListenerId(1) {}
+// Event implementation
+Event::Event(const std::string& eventType, EventPriority priority)
+    : type(eventType),
+      handled(false),
+      priority(priority),
+      propagation(EventPropagation::Continue),
+      timestamp(std::chrono::steady_clock::now()),
+      eventId(nextEventId++) {}
 
-EventDispatcher::~EventDispatcher() {
-    removeAllListeners();
-}
+// EventDispatcher implementation
+EventDispatcher::EventDispatcher()
+    : nextListenerId(1),
+      processingQueue(false),
+      maxQueueSize(100),
+      recordHistory(false),
+      maxHistorySize(100) {}
+
+EventDispatcher::~EventDispatcher() { removeAllListeners(); }
 
 EventDispatcher* EventDispatcher::getInstance() {
     if (!instance) {
@@ -33,7 +44,13 @@ void EventDispatcher::destroy() {
 
 int EventDispatcher::addEventListener(const std::string& eventType, const EventHandler& handler) {
     int id = nextListenerId++;
-    listeners[eventType].push_back({id, handler});
+    ListenerInfo info;
+    info.id = id;
+    info.handler = handler;
+    info.priority = EventPriority::Normal;
+    info.once = false;
+    // filter is empty/null which is fine
+    listeners[eventType].push_back(info);
     return id;
 }
 
@@ -41,12 +58,12 @@ void EventDispatcher::removeEventListener(const std::string& eventType, int list
     auto it = listeners.find(eventType);
     if (it != listeners.end()) {
         auto& listenerList = it->second;
-        listenerList.erase(
-            std::remove_if(listenerList.begin(), listenerList.end(),
-                [listenerId](const ListenerInfo& info) { return info.id == listenerId; }),
-            listenerList.end()
-        );
-        
+        listenerList.erase(std::remove_if(listenerList.begin(), listenerList.end(),
+                                          [listenerId](const ListenerInfo& info) {
+                                              return info.id == listenerId;
+                                          }),
+                           listenerList.end());
+
         if (listenerList.empty()) {
             listeners.erase(it);
         }
@@ -57,19 +74,21 @@ void EventDispatcher::removeAllListeners(const std::string& eventType) {
     listeners.erase(eventType);
 }
 
-void EventDispatcher::removeAllListeners() {
-    listeners.clear();
-}
+void EventDispatcher::removeAllListeners() { listeners.clear(); }
 
 void EventDispatcher::dispatchEvent(const Event& event) {
     auto it = listeners.find(event.getType());
     if (it != listeners.end()) {
         // Make a copy of the listener list in case it's modified during event handling
         std::vector<ListenerInfo> listenersCopy = it->second;
-        
+
+        // Sort by priority if needed, but for legacy addEventListener we used default priority.
+        // If we want to support priority, we should sort.
+        // Ideally listeners should be kept sorted.
+
         for (const auto& listenerInfo : listenersCopy) {
             listenerInfo.handler(event);
-            
+
             if (event.isHandled()) {
                 break;
             }
@@ -82,5 +101,9 @@ void EventDispatcher::dispatchEvent(const std::string& eventType) {
     dispatchEvent(event);
 }
 
-} // namespace Events
-} // namespace JJM
+// Implement subscribe/unsubscribe methods if needed or leave them for later if they are not used
+// yet. For now, only fixing the compilation errors which were in Event constructor and
+// addEventListener.
+
+}  // namespace Events
+}  // namespace JJM

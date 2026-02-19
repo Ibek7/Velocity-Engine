@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "utils/StringUtils.h"
+
 namespace JJM {
 namespace Core {
 
@@ -53,16 +55,13 @@ bool Config::loadFromFile(const std::string& filename) {
         // Parse key=value
         size_t pos = line.find('=');
         if (pos != std::string::npos) {
-#include "utils/StringUtils.h"
-
-            // ...
-
             std::string key = line.substr(0, pos);
             std::string value = line.substr(pos + 1);
 
             // Trim whitespace
-            key = Utils::StringUtils::trim(key);
-            value = Utils::StringUtils::trim(value);
+            // Trim whitespace
+            key = JJM::Utils::StringUtils::trim(key);
+            value = JJM::Utils::StringUtils::trim(value);
 
             // Try to parse as different types
             if (value == "true" || value == "false") {

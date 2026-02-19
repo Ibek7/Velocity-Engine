@@ -4,26 +4,18 @@ namespace JJM {
 namespace AI {
 
 // StateTransition implementation
-StateTransition::StateTransition(const std::string& targetState)
-    : targetState(targetState) {}
+StateTransition::StateTransition(const std::string& targetState) : targetState(targetState) {}
 
 StateTransition::~StateTransition() {}
 
-void StateTransition::setCondition(std::function<bool()> condition) {
-    this->condition = condition;
-}
+void StateTransition::setCondition(std::function<bool()> condition) { this->condition = condition; }
 
-bool StateTransition::checkCondition() const {
-    return condition ? condition() : true;
-}
+bool StateTransition::checkCondition() const { return condition ? condition() : true; }
 
-std::string StateTransition::getTargetState() const {
-    return targetState;
-}
+std::string StateTransition::getTargetState() const { return targetState; }
 
 // State implementation
-State::State(const std::string& name)
-    : name(name), stateMachine(nullptr) {}
+State::State(const std::string& name) : name(name), stateMachine(nullptr) {}
 
 State::~State() {}
 
@@ -36,7 +28,7 @@ void State::onExit() {
 }
 
 void State::update(float deltaTime) {
-    (void)deltaTime; // Unused
+    (void)deltaTime;  // Unused
 }
 
 void State::addTransition(std::unique_ptr<StateTransition> transition) {
@@ -52,17 +44,12 @@ StateTransition* State::checkTransitions() {
     return nullptr;
 }
 
-std::string State::getName() const {
-    return name;
-}
+std::string State::getName() const { return name; }
 
-void State::setStateMachine(StateMachine* machine) {
-    this->stateMachine = machine;
-}
+void State::setStateMachine(StateMachine* machine) { this->stateMachine = machine; }
 
 // StateMachine implementation
-StateMachine::StateMachine()
-    : currentState(nullptr), previousState(nullptr) {}
+StateMachine::StateMachine() : currentState(nullptr), previousState(nullptr) {}
 
 StateMachine::~StateMachine() {}
 
@@ -107,9 +94,7 @@ void StateMachine::update(float deltaTime) {
     }
 }
 
-State* StateMachine::getCurrentState() const {
-    return currentState;
-}
+State* StateMachine::getCurrentState() const { return currentState; }
 
 State* StateMachine::getState(const std::string& name) {
     auto it = states.find(name);
@@ -117,17 +102,15 @@ State* StateMachine::getState(const std::string& name) {
 }
 
 void StateMachine::setBlackboardValue(const std::string& key, int value) {
-    blackboard[key] = value;
+    blackboard.set(key, value);
 }
 
 int StateMachine::getBlackboardValue(const std::string& key, int defaultValue) const {
-    auto it = blackboard.find(key);
-    return it != blackboard.end() ? it->second : defaultValue;
+    return blackboard.get<int>(key, defaultValue);
 }
 
 // HierarchicalStateMachine implementation
-HierarchicalStateMachine::HierarchicalStateMachine(const std::string& name)
-    : State(name) {}
+HierarchicalStateMachine::HierarchicalStateMachine(const std::string& name) : State(name) {}
 
 HierarchicalStateMachine::~HierarchicalStateMachine() {}
 
@@ -145,9 +128,7 @@ void HierarchicalStateMachine::onExit() {
     State::onExit();
 }
 
-void HierarchicalStateMachine::update(float deltaTime) {
-    subMachine.update(deltaTime);
-}
+void HierarchicalStateMachine::update(float deltaTime) { subMachine.update(deltaTime); }
 
 void HierarchicalStateMachine::addSubState(std::unique_ptr<State> state) {
     subMachine.addState(std::move(state));
@@ -225,27 +206,26 @@ State* StateMachineStack::getCurrentState() const {
     return stateStack.empty() ? nullptr : stateStack.back().get();
 }
 
-size_t StateMachineStack::getStackSize() const {
-    return stateStack.size();
-}
+size_t StateMachineStack::getStackSize() const { return stateStack.size(); }
 
 // StateMachineBuilder implementation
-StateMachineBuilder::StateMachineBuilder()
-    : machine(std::make_unique<StateMachine>()) {}
+StateMachineBuilder::StateMachineBuilder() : machine(std::make_unique<StateMachine>()) {}
 
 StateMachineBuilder::~StateMachineBuilder() {}
 
 StateMachineBuilder& StateMachineBuilder::addState(const std::string& name,
-                                                    std::unique_ptr<State> state) {
+                                                   std::unique_ptr<State> state) {
+    // Ensure state name matches key if state doesn't have one set (or just verify)
+    if (state->getName() != name) {
+        // We could rename it or just accept it. State::getName is what matters to addState
+    }
     machine->addState(std::move(state));
     return *this;
 }
 
-StateMachineBuilder& StateMachineBuilder::addTransition(
-    const std::string& fromState,
-    const std::string& toState,
-    std::function<bool()> condition) {
-    
+StateMachineBuilder& StateMachineBuilder::addTransition(const std::string& fromState,
+                                                        const std::string& toState,
+                                                        std::function<bool()> condition) {
     pendingTransitions[fromState].push_back({toState, condition});
     return *this;
 }
@@ -272,8 +252,7 @@ std::unique_ptr<StateMachine> StateMachineBuilder::build() {
 }
 
 // AIBehaviorState implementation
-AIBehaviorState::AIBehaviorState(const std::string& name)
-    : State(name) {}
+AIBehaviorState::AIBehaviorState(const std::string& name) : State(name) {}
 
 AIBehaviorState::~AIBehaviorState() {}
 
@@ -309,5 +288,5 @@ void AIBehaviorState::update(float deltaTime) {
     }
 }
 
-} // namespace AI
-} // namespace JJM
+}  // namespace AI
+}  // namespace JJM

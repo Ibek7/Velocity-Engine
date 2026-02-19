@@ -34,7 +34,8 @@ bool DemoGame::initialize() {
     }
 
     // Initialize input
-    inputManager.initialize();
+    // inputManager.initialize(); // InputManager initialization is handled in constructor or lazy
+    // loaded
 
     // Initialize audio
     audioManager->initialize();
@@ -58,7 +59,7 @@ bool DemoGame::initialize() {
 
 void DemoGame::setupEvents() {
     eventDispatcher->addEventListener(
-        "player_move", [](const Events::Event& event) { Debug::Logger::debug("Player moved"); });
+        "player_move", [](const Events::Event&) { Debug::Logger::debug("Player moved"); });
 }
 
 void DemoGame::run() {
@@ -78,7 +79,7 @@ void DemoGame::handleEvents() {
         if (event.type == SDL_QUIT) {
             running = false;
         }
-        inputManager.processEvent(event);
+        inputManager.handleEvent(event);
     }
 }
 
@@ -93,16 +94,16 @@ void DemoGame::update(float dt) {
 void DemoGame::processInput(const float dt) {
     // Player movement
     Math::Vector2D movement(0, 0);
-    if (inputManager.isKeyHeld(SDL_SCANCODE_W) || inputManager.isKeyHeld(SDL_SCANCODE_UP)) {
+    if (inputManager.isKeyDown(SDLK_w) || inputManager.isKeyDown(SDLK_UP)) {
         movement.y -= 1;
     }
-    if (inputManager.isKeyHeld(SDL_SCANCODE_S) || inputManager.isKeyHeld(SDL_SCANCODE_DOWN)) {
+    if (inputManager.isKeyDown(SDLK_s) || inputManager.isKeyDown(SDLK_DOWN)) {
         movement.y += 1;
     }
-    if (inputManager.isKeyHeld(SDL_SCANCODE_A) || inputManager.isKeyHeld(SDL_SCANCODE_LEFT)) {
+    if (inputManager.isKeyDown(SDLK_a) || inputManager.isKeyDown(SDLK_LEFT)) {
         movement.x -= 1;
     }
-    if (inputManager.isKeyHeld(SDL_SCANCODE_D) || inputManager.isKeyHeld(SDL_SCANCODE_RIGHT)) {
+    if (inputManager.isKeyDown(SDLK_d) || inputManager.isKeyDown(SDLK_RIGHT)) {
         movement.x += 1;
     }
 
@@ -112,7 +113,7 @@ void DemoGame::processInput(const float dt) {
     }
 
     // Spawn particles on click
-    if (inputManager.isMouseButtonPressed(SDL_BUTTON_LEFT)) {
+    if (inputManager.isMouseButtonPressed(Input::MouseButton::LEFT)) {
         auto* emitter = particleSystem->createEmitter(inputManager.getMousePosition(), 50);
         emitter->setLifetime(0.5f, 1.5f);
         emitter->setSpeed(50.0f, 200.0f);
@@ -123,12 +124,12 @@ void DemoGame::processInput(const float dt) {
     }
 
     // Shake camera on space
-    if (inputManager.isKeyPressed(SDL_SCANCODE_SPACE)) {
+    if (inputManager.isKeyPressed(SDLK_SPACE)) {
         camera->shake(10.0f, 0.3f);
     }
 
     // Quit on escape
-    if (inputManager.isKeyPressed(SDL_SCANCODE_ESCAPE)) {
+    if (inputManager.isKeyPressed(SDLK_ESCAPE)) {
         running = false;
     }
 }

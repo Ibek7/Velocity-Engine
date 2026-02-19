@@ -1,4 +1,5 @@
 #include "audio/AudioManager.h"
+
 #include <iostream>
 
 namespace JJM {
@@ -6,12 +7,10 @@ namespace Audio {
 
 AudioManager* AudioManager::instance = nullptr;
 
-AudioManager::AudioManager() 
+AudioManager::AudioManager()
     : initialized(false), musicVolume(MIX_MAX_VOLUME), sfxVolume(MIX_MAX_VOLUME) {}
 
-AudioManager::~AudioManager() {
-    shutdown();
-}
+AudioManager::~AudioManager() { shutdown(); }
 
 AudioManager* AudioManager::getInstance() {
     if (!instance) {
@@ -32,12 +31,12 @@ bool AudioManager::initialize(int frequency, Uint16 format, int channels, int ch
         std::cerr << "AudioManager already initialized!" << std::endl;
         return false;
     }
-    
+
     if (Mix_OpenAudio(frequency, format, channels, chunksize) < 0) {
         std::cerr << "SDL_mixer initialization failed: " << Mix_GetError() << std::endl;
         return false;
     }
-    
+
     initialized = true;
     std::cout << "AudioManager initialized successfully" << std::endl;
     return true;
@@ -45,7 +44,7 @@ bool AudioManager::initialize(int frequency, Uint16 format, int channels, int ch
 
 void AudioManager::shutdown() {
     if (!initialized) return;
-    
+
     unloadAll();
     Mix_CloseAudio();
     initialized = false;
@@ -56,13 +55,13 @@ bool AudioManager::loadMusic(const std::string& name, const std::string& filePat
         std::cerr << "Music '" << name << "' already loaded!" << std::endl;
         return false;
     }
-    
+
     Mix_Music* music = Mix_LoadMUS(filePath.c_str());
     if (!music) {
         std::cerr << "Failed to load music '" << filePath << "': " << Mix_GetError() << std::endl;
         return false;
     }
-    
+
     musicTracks[name] = music;
     return true;
 }
@@ -73,59 +72,54 @@ void AudioManager::playMusic(const std::string& name, int loops) {
         std::cerr << "Music '" << name << "' not found!" << std::endl;
         return;
     }
-    
+
     if (Mix_PlayMusic(it->second, loops) < 0) {
         std::cerr << "Failed to play music: " << Mix_GetError() << std::endl;
     }
 }
 
-void AudioManager::pauseMusic() {
-    Mix_PauseMusic();
-}
+void AudioManager::pauseMusic() { Mix_PauseMusic(); }
 
-void AudioManager::resumeMusic() {
-    Mix_ResumeMusic();
-}
+void AudioManager::resumeMusic() { Mix_ResumeMusic(); }
 
-void AudioManager::stopMusic() {
-    Mix_HaltMusic();
-}
+void AudioManager::stopMusic() { Mix_HaltMusic(); }
 
 void AudioManager::setMusicVolume(int volume) {
     musicVolume = std::max(0, std::min(MIX_MAX_VOLUME, volume));
     Mix_VolumeMusic(musicVolume);
 }
 
-bool AudioManager::isMusicPlaying() const {
-    return Mix_PlayingMusic() != 0;
-}
+bool AudioManager::isMusicPlaying() const { return Mix_PlayingMusic() != 0; }
 
 bool AudioManager::loadSoundEffect(const std::string& name, const std::string& filePath) {
     if (soundEffects.find(name) != soundEffects.end()) {
         std::cerr << "Sound effect '" << name << "' already loaded!" << std::endl;
         return false;
     }
-    
+
     Mix_Chunk* chunk = Mix_LoadWAV(filePath.c_str());
     if (!chunk) {
-        std::cerr << "Failed to load sound effect '" << filePath << "': " << Mix_GetError() << std::endl;
+        std::cerr << "Failed to load sound effect '" << filePath << "': " << Mix_GetError()
+                  << std::endl;
         return false;
     }
-    
+
     soundEffects[name] = chunk;
     return true;
 }
 
-void AudioManager::playSoundEffect(const std::string& name, int loops) {
+int AudioManager::playSoundEffect(const std::string& name, int loops) {
     auto it = soundEffects.find(name);
     if (it == soundEffects.end()) {
         std::cerr << "Sound effect '" << name << "' not found!" << std::endl;
-        return;
+        return -1;
     }
-    
-    if (Mix_PlayChannel(-1, it->second, loops) < 0) {
+
+    int channel = Mix_PlayChannel(-1, it->second, loops);
+    if (channel < 0) {
         std::cerr << "Failed to play sound effect: " << Mix_GetError() << std::endl;
     }
+    return channel;
 }
 
 void AudioManager::setSFXVolume(int volume) {
@@ -139,7 +133,7 @@ void AudioManager::setSFXVolume(const std::string& name, int volume) {
         std::cerr << "Sound effect '" << name << "' not found!" << std::endl;
         return;
     }
-    
+
     int vol = std::max(0, std::min(MIX_MAX_VOLUME, volume));
     Mix_VolumeChunk(it->second, vol);
 }
@@ -165,7 +159,7 @@ void AudioManager::unloadAll() {
         Mix_FreeMusic(pair.second);
     }
     musicTracks.clear();
-    
+
     for (auto& pair : soundEffects) {
         Mix_FreeChunk(pair.second);
     }
@@ -177,7 +171,7 @@ void AudioManager::fadeInMusic(const std::string& name, const FadeCurve& curve, 
         playMusic(name, loops);
         return;
     }
-    
+
     fadeInMusic(name, curve.duration, loops);
 }
 
@@ -187,7 +181,7 @@ void AudioManager::fadeOutMusic(const FadeCurve& curve, std::function<void()> on
         if (onComplete) onComplete();
         return;
     }
-    
+
     fadeOutMusic(curve.duration, onComplete);
 }
 
@@ -197,9 +191,9 @@ void AudioManager::crossfadeMusic(const std::string& name, const FadeCurve& curv
         playMusic(name, loops);
         return;
     }
-    
+
     crossfadeMusic(name, curve.duration, loops);
 }
 
-} // namespace Audio
-} // namespace JJM
+}  // namespace Audio
+}  // namespace JJM

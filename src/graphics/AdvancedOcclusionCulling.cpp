@@ -1,5 +1,9 @@
 #include "graphics/AdvancedOcclusionCulling.h"
+#ifdef __APPLE__
+#include <OpenGL/gl3.h>
+#else
 #include <GL/glew.h>
+#endif
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -18,42 +22,41 @@ void EnhancedFrustumCuller::extractFromMatrix(const float* viewProjMatrix) {
     m_planes[0][1] = viewProjMatrix[7] + viewProjMatrix[4];
     m_planes[0][2] = viewProjMatrix[11] + viewProjMatrix[8];
     m_planes[0][3] = viewProjMatrix[15] + viewProjMatrix[12];
-    
+
     // Right plane
     m_planes[1][0] = viewProjMatrix[3] - viewProjMatrix[0];
     m_planes[1][1] = viewProjMatrix[7] - viewProjMatrix[4];
     m_planes[1][2] = viewProjMatrix[11] - viewProjMatrix[8];
     m_planes[1][3] = viewProjMatrix[15] - viewProjMatrix[12];
-    
+
     // Bottom plane
     m_planes[2][0] = viewProjMatrix[3] + viewProjMatrix[1];
     m_planes[2][1] = viewProjMatrix[7] + viewProjMatrix[5];
     m_planes[2][2] = viewProjMatrix[11] + viewProjMatrix[9];
     m_planes[2][3] = viewProjMatrix[15] + viewProjMatrix[13];
-    
+
     // Top plane
     m_planes[3][0] = viewProjMatrix[3] - viewProjMatrix[1];
     m_planes[3][1] = viewProjMatrix[7] - viewProjMatrix[5];
     m_planes[3][2] = viewProjMatrix[11] - viewProjMatrix[9];
     m_planes[3][3] = viewProjMatrix[15] - viewProjMatrix[13];
-    
+
     // Near plane
     m_planes[4][0] = viewProjMatrix[3] + viewProjMatrix[2];
     m_planes[4][1] = viewProjMatrix[7] + viewProjMatrix[6];
     m_planes[4][2] = viewProjMatrix[11] + viewProjMatrix[10];
     m_planes[4][3] = viewProjMatrix[15] + viewProjMatrix[14];
-    
+
     // Far plane
     m_planes[5][0] = viewProjMatrix[3] - viewProjMatrix[2];
     m_planes[5][1] = viewProjMatrix[7] - viewProjMatrix[6];
     m_planes[5][2] = viewProjMatrix[11] - viewProjMatrix[10];
     m_planes[5][3] = viewProjMatrix[15] - viewProjMatrix[14];
-    
+
     // Normalize planes
     for (int i = 0; i < 6; ++i) {
-        float length = std::sqrt(m_planes[i][0] * m_planes[i][0] +
-                                m_planes[i][1] * m_planes[i][1] +
-                                m_planes[i][2] * m_planes[i][2]);
+        float length = std::sqrt(m_planes[i][0] * m_planes[i][0] + m_planes[i][1] * m_planes[i][1] +
+                                 m_planes[i][2] * m_planes[i][2]);
         if (length > 0.0f) {
             m_planes[i][0] /= length;
             m_planes[i][1] /= length;
@@ -70,45 +73,41 @@ bool EnhancedFrustumCuller::testAABB(const float* min, const float* max) const {
         float px = (m_planes[i][0] >= 0) ? max[0] : min[0];
         float py = (m_planes[i][1] >= 0) ? max[1] : min[1];
         float pz = (m_planes[i][2] >= 0) ? max[2] : min[2];
-        
-        float distance = m_planes[i][0] * px + m_planes[i][1] * py +
-                        m_planes[i][2] * pz + m_planes[i][3];
-        
+
+        float distance =
+            m_planes[i][0] * px + m_planes[i][1] * py + m_planes[i][2] * pz + m_planes[i][3];
+
         if (distance < 0) {
             return false;  // Outside frustum
         }
     }
-    
+
     return true;  // Inside or intersecting frustum
 }
 
 bool EnhancedFrustumCuller::testSphere(const float* center, float radius) const {
     for (int i = 0; i < 6; ++i) {
         float distance = m_planes[i][0] * center[0] + m_planes[i][1] * center[1] +
-                        m_planes[i][2] * center[2] + m_planes[i][3];
-        
+                         m_planes[i][2] * center[2] + m_planes[i][3];
+
         if (distance < -radius) {
             return false;
         }
     }
-    
+
     return true;
 }
 
 bool EnhancedFrustumCuller::testAABBFast(const float* min, const float* max) const {
     // Fast approximate test - only check against near/far planes
-    float center[3] = {
-        (min[0] + max[0]) * 0.5f,
-        (min[1] + max[1]) * 0.5f,
-        (min[2] + max[2]) * 0.5f
-    };
-    
-    float radius = std::sqrt(
-        (max[0] - min[0]) * (max[0] - min[0]) +
-        (max[1] - min[1]) * (max[1] - min[1]) +
-        (max[2] - min[2]) * (max[2] - min[2])
-    ) * 0.5f;
-    
+    float center[3] = {(min[0] + max[0]) * 0.5f, (min[1] + max[1]) * 0.5f,
+                       (min[2] + max[2]) * 0.5f};
+
+    float radius =
+        std::sqrt((max[0] - min[0]) * (max[0] - min[0]) + (max[1] - min[1]) * (max[1] - min[1]) +
+                  (max[2] - min[2]) * (max[2] - min[2])) *
+        0.5f;
+
     return testSphere(center, radius);
 }
 
@@ -117,18 +116,13 @@ bool EnhancedFrustumCuller::testAABBFast(const float* min, const float* max) con
 // =============================================================================
 
 GPUOcclusionQueryManager::GPUOcclusionQueryManager()
-    : m_currentFrame(0)
-    , m_queryBudget(100)
-    , m_conservativeRasterization(false)
-{}
+    : m_currentFrame(0), m_queryBudget(100), m_conservativeRasterization(false) {}
 
-GPUOcclusionQueryManager::~GPUOcclusionQueryManager() {
-    shutdown();
-}
+GPUOcclusionQueryManager::~GPUOcclusionQueryManager() { shutdown(); }
 
 void GPUOcclusionQueryManager::initialize(int maxQueries) {
     m_queries.reserve(maxQueries);
-    
+
     // Pre-allocate query objects
     for (int i = 0; i < maxQueries; ++i) {
         unsigned int queryID;
@@ -143,30 +137,31 @@ void GPUOcclusionQueryManager::shutdown() {
         m_freeQueries.pop();
         glDeleteQueries(1, &queryID);
     }
-    
+
     for (auto& query : m_queries) {
         glDeleteQueries(1, &query.queryID);
     }
     m_queries.clear();
 }
 
-bool GPUOcclusionQueryManager::issueQuery(unsigned int objectID, const float* min, const float* max) {
+bool GPUOcclusionQueryManager::issueQuery(unsigned int objectID, const float* min,
+                                          const float* max) {
     if (m_freeQueries.empty()) {
         return false;  // No queries available
     }
-    
+
     unsigned int queryID = m_freeQueries.front();
     m_freeQueries.pop();
-    
+
     // Begin occlusion query
     glBeginQuery(GL_ANY_SAMPLES_PASSED, queryID);
-    
+
     // Render bounding box
     renderBoundingBox(min, max);
-    
+
     // End query
     glEndQuery(GL_ANY_SAMPLES_PASSED);
-    
+
     // Store query state
     QueryState state;
     state.queryID = queryID;
@@ -175,22 +170,23 @@ bool GPUOcclusionQueryManager::issueQuery(unsigned int objectID, const float* mi
     state.resultAvailable = false;
     state.samplesPassed = 0;
     m_queries.push_back(state);
-    
+
     return true;
 }
 
-void GPUOcclusionQueryManager::collectResults(std::unordered_map<unsigned int, bool>& visibilityMap) {
+void GPUOcclusionQueryManager::collectResults(
+    std::unordered_map<unsigned int, bool>& visibilityMap) {
     auto it = m_queries.begin();
     while (it != m_queries.end()) {
         GLint available = 0;
         glGetQueryObjectiv(it->queryID, GL_QUERY_RESULT_AVAILABLE, &available);
-        
+
         if (available) {
             GLuint samplesPassed = 0;
             glGetQueryObjectuiv(it->queryID, GL_QUERY_RESULT, &samplesPassed);
-            
+
             visibilityMap[it->objectID] = (samplesPassed > 0);
-            
+
             // Return query to pool
             m_freeQueries.push(it->queryID);
             it = m_queries.erase(it);
@@ -203,14 +199,14 @@ void GPUOcclusionQueryManager::collectResults(std::unordered_map<unsigned int, b
 void GPUOcclusionQueryManager::renderBoundingBox(const float* min, const float* max) {
     // Render simple bounding box for occlusion test
     // TODO: Implement efficient box rendering (index buffer, etc.)
-    
+
     glDisable(GL_CULL_FACE);
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
     glDepthMask(GL_FALSE);
-    
+
     // Draw box vertices
     // ... box drawing code ...
-    
+
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
@@ -220,11 +216,7 @@ void GPUOcclusionQueryManager::renderBoundingBox(const float* min, const float* 
 // SoftwareHiZBuffer Implementation
 // =============================================================================
 
-SoftwareHiZBuffer::SoftwareHiZBuffer()
-    : m_baseWidth(0)
-    , m_baseHeight(0)
-    , m_levels(0)
-{}
+SoftwareHiZBuffer::SoftwareHiZBuffer() : m_baseWidth(0), m_baseHeight(0), m_levels(0) {}
 
 SoftwareHiZBuffer::~SoftwareHiZBuffer() = default;
 
@@ -232,9 +224,9 @@ void SoftwareHiZBuffer::initialize(int width, int height) {
     m_baseWidth = width;
     m_baseHeight = height;
     m_levels = static_cast<int>(std::log2(std::max(width, height))) + 1;
-    
+
     m_depthPyramid.resize(m_levels);
-    
+
     int w = width;
     int h = height;
     for (int i = 0; i < m_levels; ++i) {
@@ -246,9 +238,8 @@ void SoftwareHiZBuffer::initialize(int width, int height) {
 
 void SoftwareHiZBuffer::buildFromDepth(const float* depthData) {
     // Copy base level
-    std::memcpy(m_depthPyramid[0].data(), depthData,
-               m_baseWidth * m_baseHeight * sizeof(float));
-    
+    std::memcpy(m_depthPyramid[0].data(), depthData, m_baseWidth * m_baseHeight * sizeof(float));
+
     // Build pyramid levels
     for (int i = 1; i < m_levels; ++i) {
         downsampleLevel(i);
@@ -260,25 +251,25 @@ bool SoftwareHiZBuffer::testAABB(const float* screenMin, const float* screenMax,
     float width = screenMax[0] - screenMin[0];
     float height = screenMax[1] - screenMin[1];
     int level = getMipLevelForSize(width, height);
-    
+
     // Sample Hi-Z buffer conservatively (max depth)
     int x0 = static_cast<int>(screenMin[0]) >> level;
     int y0 = static_cast<int>(screenMin[1]) >> level;
     int x1 = static_cast<int>(screenMax[0]) >> level;
     int y1 = static_cast<int>(screenMax[1]) >> level;
-    
+
     float maxDepth = sampleDepthConservative(x0, y0, level);
-    
+
     // If min Z is behind max depth in Hi-Z, object is occluded
     return minZ > maxDepth;
 }
 
 float SoftwareHiZBuffer::getDepth(int x, int y, int mipLevel) const {
     if (mipLevel >= m_levels) return 0.0f;
-    
+
     int levelWidth = std::max(1, m_baseWidth >> mipLevel);
     if (x >= levelWidth || y >= (m_baseHeight >> mipLevel)) return 0.0f;
-    
+
     return m_depthPyramid[mipLevel][y * levelWidth + x];
 }
 
@@ -287,7 +278,7 @@ void SoftwareHiZBuffer::downsampleLevel(int level) {
     int srcHeight = std::max(1, m_baseHeight >> (level - 1));
     int dstWidth = std::max(1, m_baseWidth >> level);
     int dstHeight = std::max(1, m_baseHeight >> level);
-    
+
     for (int y = 0; y < dstHeight; ++y) {
         for (int x = 0; x < dstWidth; ++x) {
             // Sample 2x2 from previous level and take maximum
@@ -295,7 +286,7 @@ void SoftwareHiZBuffer::downsampleLevel(int level) {
             float d1 = m_depthPyramid[level - 1][(y * 2) * srcWidth + (x * 2 + 1)];
             float d2 = m_depthPyramid[level - 1][(y * 2 + 1) * srcWidth + (x * 2)];
             float d3 = m_depthPyramid[level - 1][(y * 2 + 1) * srcWidth + (x * 2 + 1)];
-            
+
             m_depthPyramid[level][y * dstWidth + x] = std::max({d0, d1, d2, d3});
         }
     }
@@ -315,19 +306,16 @@ int SoftwareHiZBuffer::getMipLevelForSize(float screenWidth, float screenHeight)
 // =============================================================================
 
 AdvancedOcclusionCuller::AdvancedOcclusionCuller()
-    : m_useFrustumCulling(true)
-    , m_useOcclusionQueries(false)
-    , m_useHiZ(false)
-    , m_useTemporalCoherence(true)
-    , m_currentFrame(0)
-{
+    : m_useFrustumCulling(true),
+      m_useOcclusionQueries(false),
+      m_useHiZ(false),
+      m_useTemporalCoherence(true),
+      m_currentFrame(0) {
     m_queryManager = std::make_unique<GPUOcclusionQueryManager>();
     m_hiZBuffer = std::make_unique<SoftwareHiZBuffer>();
 }
 
-AdvancedOcclusionCuller::~AdvancedOcclusionCuller() {
-    shutdown();
-}
+AdvancedOcclusionCuller::~AdvancedOcclusionCuller() { shutdown(); }
 
 void AdvancedOcclusionCuller::initialize() {
     m_queryManager->initialize();
@@ -339,7 +327,8 @@ void AdvancedOcclusionCuller::shutdown() {
     m_objects.clear();
 }
 
-void AdvancedOcclusionCuller::registerObject(unsigned int id, const float* min, const float* max, float importance) {
+void AdvancedOcclusionCuller::registerObject(unsigned int id, const float* min, const float* max,
+                                             float importance) {
     ObjectState state;
     state.id = id;
     std::memcpy(state.bounds, min, sizeof(float) * 3);
@@ -350,9 +339,7 @@ void AdvancedOcclusionCuller::registerObject(unsigned int id, const float* min, 
     m_objects[id] = state;
 }
 
-void AdvancedOcclusionCuller::unregisterObject(unsigned int id) {
-    m_objects.erase(id);
-}
+void AdvancedOcclusionCuller::unregisterObject(unsigned int id) { m_objects.erase(id); }
 
 void AdvancedOcclusionCuller::updateBounds(unsigned int id, const float* min, const float* max) {
     auto it = m_objects.find(id);
@@ -362,52 +349,53 @@ void AdvancedOcclusionCuller::updateBounds(unsigned int id, const float* min, co
     }
 }
 
-std::vector<unsigned int> AdvancedOcclusionCuller::cull(const float* viewProjMatrix, const float* depthBuffer) {
+std::vector<unsigned int> AdvancedOcclusionCuller::cull(const float* viewProjMatrix,
+                                                        const float* depthBuffer) {
     clearStats();
     m_stats.totalObjects = static_cast<int>(m_objects.size());
-    
+
     // Extract frustum
     if (m_useFrustumCulling) {
         m_frustumCuller.extractFromMatrix(viewProjMatrix);
     }
-    
+
     // Build Hi-Z if provided
     if (m_useHiZ && depthBuffer) {
         m_hiZBuffer->buildFromDepth(depthBuffer);
     }
-    
+
     // Gather candidates
     std::vector<ObjectState*> candidates;
     candidates.reserve(m_objects.size());
     for (auto& [id, obj] : m_objects) {
         candidates.push_back(&obj);
     }
-    
+
     // Frustum culling
     if (m_useFrustumCulling) {
         performFrustumCulling(candidates);
     }
-    
+
     // Hi-Z testing
     if (m_useHiZ && depthBuffer) {
         performHiZTest(candidates);
     }
-    
+
     // Occlusion queries
     if (m_useOcclusionQueries) {
         performOcclusionQueries(candidates);
     }
-    
+
     // Collect visible objects
     std::vector<unsigned int> visible;
     for (const auto* obj : candidates) {
         visible.push_back(obj->id);
     }
-    
+
     m_stats.visible = static_cast<int>(visible.size());
     m_currentFrame++;
     m_queryManager->nextFrame();
-    
+
     return visible;
 }
 
@@ -425,18 +413,18 @@ void AdvancedOcclusionCuller::performFrustumCulling(std::vector<ObjectState*>& c
 
 void AdvancedOcclusionCuller::performOcclusionQueries(std::vector<ObjectState*>& candidates) {
     prioritizeQueries(candidates);
-    
+
     int queriesIssued = 0;
     for (auto* obj : candidates) {
-        if (queriesIssued >= m_queryManager->m_queryBudget) break;
-        
+        if (queriesIssued >= m_queryManager->getQueryBudget()) break;
+
         if (m_queryManager->issueQuery(obj->id, obj->bounds, obj->bounds + 3)) {
             queriesIssued++;
         }
     }
-    
+
     m_stats.queriesIssued = queriesIssued;
-    
+
     // Collect results from previous frames
     std::unordered_map<unsigned int, bool> visibilityMap;
     m_queryManager->collectResults(visibilityMap);
@@ -449,9 +437,9 @@ void AdvancedOcclusionCuller::performHiZTest(std::vector<ObjectState*>& candidat
 
 void AdvancedOcclusionCuller::prioritizeQueries(std::vector<ObjectState*>& candidates) {
     std::sort(candidates.begin(), candidates.end(),
-        [this](const ObjectState* a, const ObjectState* b) {
-            return calculateImportance(*a) > calculateImportance(*b);
-        });
+              [this](const ObjectState* a, const ObjectState* b) {
+                  return calculateImportance(*a) > calculateImportance(*b);
+              });
 }
 
 float AdvancedOcclusionCuller::calculateImportance(const ObjectState& obj) const {
@@ -460,13 +448,9 @@ float AdvancedOcclusionCuller::calculateImportance(const ObjectState& obj) const
     return obj.importance * (1.0f / (1.0f + recency)) * historyScore;
 }
 
-void AdvancedOcclusionCuller::clearStats() {
-    m_stats = CullStats();
-}
+void AdvancedOcclusionCuller::clearStats() { m_stats = CullStats(); }
 
-void AdvancedOcclusionCuller::setQueryBudget(int budget) {
-    m_queryManager->setQueryBudget(budget);
-}
+void AdvancedOcclusionCuller::setQueryBudget(int budget) { m_queryManager->setQueryBudget(budget); }
 
 void AdvancedOcclusionCuller::updateTemporalCoherence() {
     // Update visibility history for temporal coherence
@@ -476,5 +460,5 @@ void AdvancedOcclusionCuller::updateTemporalCoherence() {
     }
 }
 
-} // namespace Graphics
-} // namespace JJM
+}  // namespace Graphics
+}  // namespace JJM
